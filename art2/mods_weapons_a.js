@@ -35,7 +35,7 @@
     const x0 = 0.8 * r, x1 = (l === 0 ? 1.08 : l === 1 ? 1.2 : 1.14) * r;   // short, stubby barrels that stay inside the nose (the beam does the reaching)
     const hw = (l === 0 ? 0.075 : l === 1 ? 0.09 : l === 2 ? 0.07 : 0.06) * r;
     // mounting block at the nose
-    const mh = (ys.length > 1 ? Math.abs(ys[0]) + hw + 0.07 : hw + 0.07) * r / r;
+    const mh = (ys.length > 1 ? Math.abs(ys[0]) : 0) + hw / r + 0.07;   // in units of r (was mixing px and r -> a huge bar at the nose)
     c.fillStyle = metal(c, o, r * 0.5, -0.05);
     rrect(c, x0 - 0.06 * r, -mh * r, 0.2 * r, mh * 2 * r, 0.04 * r); c.fill();
     if (full) { c.strokeStyle = SEAM; c.lineWidth = Math.max(0.6, r * 0.03); c.stroke(); }

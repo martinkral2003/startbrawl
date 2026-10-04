@@ -65,7 +65,7 @@ function streamAt(streams, x, y) {
     }
     if (bd < st.w) {
       const p = st.pts[bi], q = st.pts[bi + 1], dx = q[0] - p[0], dy = q[1] - p[1], l = Math.hypot(dx, dy) || 1, k = streamK(st), edge = 1 - bd / st.w * 0.5;
-      ax += dx / l * 650 * k * edge; ay += dy / l * 650 * k * edge; ins = Math.max(ins, k);
+      ax += dx / l * 320 * k * edge; ay += dy / l * 320 * k * edge; ins = Math.max(ins, k);
     }
   }
   return [ax, ay, ins];
@@ -146,7 +146,7 @@ function showMenu(err) {
     <input id="code" maxlength="4" value="${esc(hashCode)}" placeholder="ABCD" style="text-transform:uppercase;text-align:center;letter-spacing:4px">
     <button class="sec" onclick="joinRoom()">Join room</button>
     <button class="sec" onclick="goFullscreen()">⛶ Fullscreen / landscape</button>
-    <p class="dim">Teams or free-for-all, capture points or last ship standing. Joystick (or WASD) to fly, lasers auto-fire, tap an enemy to target it, 3 skill buttons (Space / Q / E).</p>`);
+    <p class="dim">Teams or free-for-all, capture points or last ship standing. Joystick (or WASD) to fly, lasers auto-fire, tap an enemy to target it, 3 skill buttons (Space / Q / E); on a phone, drag a skill button to aim it.</p>`);
 }
 function showLobby() {
   if (S.mode !== 'lobby') return;
@@ -296,9 +296,9 @@ function newGame(L) {
   G.streams = G.streams.map(buildStream);
   G.pads = [[-0.55, -0.2], [0.55, 0.2]].map(([x, y]) => ({ x: x * R0, y: y * R0, r: 110 }));   // repair relays: heal any ship inside
   G.bea = (G.cond === 'capture' ? [[0, 0], [0, -0.58], [0, 0.58]] : []).map(([x, y]) => ({ x: x * R0, y: y * R0, r: 150, p: 0, owner: -1, cap: -1, cont: 0 }));
-  for (let i = 0; i < (G.layout === 1 ? 20 : 46); i++) spawnAst(220);
+  for (let i = 0; i < (G.layout === 1 ? 14 : 32); i++) spawnAst(220);
   for (let i = 0; i < 7; i++) bigRock();
-  for (let i = 0; i < 18; i++) spawnNeut(0, 260);
+  for (let i = 0; i < 12; i++) spawnNeut(0, 260);
   for (let i = 0; i < 3; i++) spawnNeut(1, 260);
   for (let i = 0; i < 3; i++) spawnNeut(3, 400);   // sentry turret platforms
   for (let i = 0; i < 2; i++) spawnNeut(5, 500);   // stranded ships to rescue
@@ -479,7 +479,7 @@ function updateShip(s, dt) {
   const [gx, gy] = gravAt(G.wells, s.x, s.y); s.vx += gx * dt; s.vy += gy * dt;
   const [qx, qy, inSt] = streamAt(G.streams, s.x, s.y); s.vx += qx * dt; s.vy += qy * dt;
   const kd = Math.exp(-DRAG * dt); s.vx *= kd; s.vy *= kd;
-  const vm = st.vmax * (s.boost > 0 ? 2.2 : 1) * (inNeb ? 0.65 : 1) * (1 + 0.8 * inSt) * (s.slow > 0 ? 0.55 : 1), sp = Math.hypot(s.vx, s.vy);
+  const vm = st.vmax * (s.boost > 0 ? 2.2 : 1) * (inNeb ? 0.65 : 1) * (1 + 0.35 * inSt) * (s.slow > 0 ? 0.55 : 1), sp = Math.hypot(s.vx, s.vy);
   if (sp > vm) { s.vx *= vm / sp; s.vy *= vm / sp; }
   // facing: toward the locked target if any (so you can drift around it), otherwise toward the stick direction
   const lock = tgtObj(I.tg), lockOk = lock && enemyOf(s, lock) && dist(s, lock) <= 720;
@@ -750,9 +750,9 @@ function stepOnce(dt) {
   G.spawnT -= dt;
   if (G.spawnT <= 0) {
     G.spawnT = 1.5;
-    if (G.neut.filter(n => n.type === 0).length < 18) spawnNeut(0, 450);
+    if (G.neut.filter(n => n.type === 0).length < 12) spawnNeut(0, 450);
     if (G.neut.filter(n => n.type === 1).length < 3) spawnNeut(1, 450);
-    if (G.ast.length < 36) { if (G.layout === 1 && Math.random() < 0.6) ringAst(); else spawnAst(400); }
+    if (G.ast.length < 28) { if (G.layout === 1 && Math.random() < 0.6) ringAst(); else spawnAst(400); }
     if (G.neut.filter(n => n.type === 5).length < 2 && (G.sosT -= 1.5) <= 0) { spawnNeut(5, 500); G.sosT = 40 * G.lenF; logMsg('📡 Distress signal — a stranded ship needs rescue!'); }
     if (G.t > 60 * G.lenF && !G.neut.some(n => n.type === 4) && (G.warT -= 1.5) <= 0) { spawnNeut(4, 600); G.warT = 90 * G.lenF; logMsg('⚠ A pirate warship is patrolling the arena!'); }
   }
@@ -944,7 +944,7 @@ function predict(dt, inp) {
   const [qx, qy, inSt] = streamAt(L.streams, P.x, P.y), inNeb = L.nebs.some(n => Math.hypot(P.x - n.x, P.y - n.y) < n.r);
   const sf = ms.slow ? 0.6 : 1; P.vx += (mx * st.acc * sf + gx + qx) * dt; P.vy += (my * st.acc * sf + gy + qy) * dt;
   const kd = Math.exp(-DRAG * dt); P.vx *= kd; P.vy *= kd;
-  const vm = st.vmax * (ms.boost ? 2.2 : 1) * (inNeb ? 0.65 : 1) * (1 + 0.8 * inSt) * (ms.slow ? 0.55 : 1), sp = Math.hypot(P.vx, P.vy);
+  const vm = st.vmax * (ms.boost ? 2.2 : 1) * (inNeb ? 0.65 : 1) * (1 + 0.35 * inSt) * (ms.slow ? 0.55 : 1), sp = Math.hypot(P.vx, P.vy);
   if (sp > vm) { P.vx *= vm / sp; P.vy *= vm / sp; }
   const T = lockedFrom(L, myTg), fa = T ? Math.atan2(T.y - P.y, T.x - P.x) : (ml > 0.05 ? Math.atan2(my, mx) : null);
   if (fa != null) P.ang += clamp(angDiff(P.ang, fa), -st.turn * dt, st.turn * dt);
@@ -957,9 +957,9 @@ function predict(dt, inp) {
 // ================================================================ input (touch joystick + skills, tap-to-target; keyboard/mouse fallback)
 const K = {}, cv = $('cv'), ctx = cv.getContext('2d');
 let CW = 1, CH = 1, DPR = 1, JOY = null, myTg = '', LASTM = null, SKP = [0, 0, 0], VIEWNOW = null;
-let SA = { t: 0, r: 0, b: 0, l: 0 };
+let LOWQ = false, EMA = 0.016, SA = { t: 0, r: 0, b: 0, l: 0 };
 function readSafe() { try { const cs = getComputedStyle($('safe')); SA = { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0, b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 }; } catch (e) {} }
-function resize() { DPR = Math.min(2, devicePixelRatio || 1); CW = innerWidth; CH = innerHeight; cv.width = CW * DPR; cv.height = CH * DPR; readSafe(); }
+function resize() { DPR = LOWQ ? 1 : Math.min(1.5, devicePixelRatio || 1); CW = innerWidth; CH = innerHeight; cv.width = CW * DPR; cv.height = CH * DPR; readSafe(); }
 addEventListener('resize', resize); resize();
 function layout() {
   const br = clamp(Math.min(CW, CH) * 0.09, 28, 46), Rr = CW - SA.r, Bb = CH - SA.b;
@@ -974,7 +974,8 @@ function uiHit(x, y) {
   if (LASTM && LASTM.pending > 0) for (let j = 0; j < LASTM.offers.length; j++) { const c = Lo.cards[j]; if (x > c.x && x < c.x + c.w && y > c.y && y < c.y + c.h) return { t: 'card', i: j }; }
   return null;
 }
-const zoomOf = () => Math.min(CW, CH) / 700;
+const DEMOZ = +((location.search.match(/[?&]zoom=([0-9.]+)/) || [])[1]) || 1;
+const zoomOf = () => Math.min(CW, CH) / (Math.min(CW, CH) < 500 ? 600 : 700) * DEMOZ;
 function worldAt(sx, sy) { const Z = zoomOf(); return { x: R.cam.x + (sx - CW / 2) / Z, y: R.cam.y + (sy - CH / 2) / Z }; }
 function tapTarget(sx, sy) {
   if (S.mode !== 'game' || !VIEWNOW || !R.cam) return;
@@ -992,7 +993,10 @@ cv.addEventListener('pointerdown', e => {
   const h = uiHit(e.clientX, e.clientY);
   if (h) {
     if (h.t === 'fs') toggleFs();
-    else if (h.t === 'sk') SKP[h.i] = performance.now() + 160;   // skills auto-aim: tap to fire
+    else if (h.t === 'sk') {
+      if (e.pointerType === 'mouse') SKP[h.i] = performance.now() + 160;   // PC: click/keys fire with auto-aim
+      else { const b = layout().btn[h.i]; AIMING = { j: h.i, id: e.pointerId, bx: b.x, by: b.y, x: e.clientX, y: e.clientY, moved: false }; try { cv.setPointerCapture(e.pointerId); } catch (er) {} }   // touch: tap = auto-aim, drag = aim
+    }
     else doPick(h.i);
     return;
   }
@@ -1056,7 +1060,7 @@ function processEvents2(list) {
   try {
     for (const [t, x, y, r] of list) {
       if (t === 'f') FIRE[r] = 1;
-      else if (t === 'h') { const sh = nearestShip(x, y, 80); if (sh && r >= 8) { HIT[sh.i] = 0.6; if (sh.i === myi) { SHAKE = Math.max(SHAKE, 7); FLASH = Math.min(1, FLASH + 0.45); } } if (r >= 8 || Math.random() < 0.25) Art2.fx.spawn('spark', x, y, {}); }
+      else if (t === 'h') { const sh = nearestShip(x, y, 80); if (sh && r >= 8) { HIT[sh.i] = 0.6; if (sh.i === myi) { SHAKE = Math.max(SHAKE, 7); FLASH = Math.min(1, FLASH + 0.45); } } if (!LOWQ && (r >= 8 || Math.random() < 0.25)) Art2.fx.spawn('spark', x, y, {}); }
       else if (t === 's') { const sh = nearestShip(x, y, 110); if (sh) { Art2.shield.hit(sh.i, Math.atan2(y - sh.y, x - sh.x), 1); if (sh.i === myi && r >= 8) SHAKE = Math.max(SHAKE, 3); } }
       else if (t === 'x') { Art2.fx.spawn('explosion', x, y, { size: r < 40 ? 'small' : r < 120 ? 'medium' : 'large' }); const mv = VIEWNOW && VIEWNOW.ships[myi]; if (mv && mv.alive) { const d = Math.hypot(mv.x - x, mv.y - y); if (d < 500) SHAKE = Math.max(SHAKE, (r < 40 ? 3 : 9) * (1 - d / 500)); } }
       else if (t === 'k') Art2.fx.spawn('shockwave', x, y, { r, col: '#9ff' });
@@ -1106,7 +1110,7 @@ function drawShip(s, isMe) {
   PB[i] = s.boost;
   a.id = i; a.x = s.x; a.y = s.y; a.ang = s.ang; a.vx = s.vx; a.vy = s.vy; a.lv = s.lv; a.col = facC(i); a.seed = i * 7 + 3; a.thr = THR[i]; a.boost = s.boost ? 1 : 0;
   a.fire = FIRE[i]; a.hit = HIT[i]; a.hpf = clamp(s.hp / s.hpMax, 0, 1); a.shf = s.shMax ? clamp(s.sh / s.shMax, 0, 1) : 0; a.emp = s.emp ? 1 : 0; a.alive = true; a.zoom = FZ;
-  try { Art2.ship.draw(ctx, a, TT); Art2.shield.draw(ctx, a, TT); }
+  try { Art2.ship.draw(ctx, a, TT); if (!LOWQ || isMe) Art2.shield.draw(ctx, a, TT); }
   catch (e) { if (!window.__artErr) { window.__artErr = e.message; console.error('Art2 ship', e); } return drawShipOld(s, isMe); }
   if (s.slow) { ctx.strokeStyle = '#7fe3ff'; ctx.globalAlpha = 0.7; ctx.lineWidth = 2; ctx.setLineDash([5, 7]); ctx.lineDashOffset = -TT * 20; ctx.beginPath(); ctx.arc(s.x, s.y, r * 1.35, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1; }
   if (isMe) { ctx.strokeStyle = a.col; ctx.globalAlpha = 0.35; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(s.x, s.y, r * 2.1, 0, 7); ctx.stroke(); ctx.globalAlpha = 1; }
@@ -1151,7 +1155,8 @@ function drawBombTelegraph(w) {   // gravity bomb: slow zone, collapse (stun) zo
   ctx.globalAlpha = 0.9; ctx.strokeStyle = col; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(w.x, w.y, 48, -Math.PI / 2, -Math.PI / 2 + f * 6.283); ctx.stroke();
   ctx.restore();
 }
-function drawStreamFlow(st, tt) {   // faint bubbles drifting along a curved current; denser/brighter when it is strong
+function drawStreamFlow(st, tt) {
+  if (LOWQ) return;   // faint bubbles drifting along a curved current; denser/brighter when it is strong
   const k = streamK(st), len = Math.hypot(st.x2 - st.x1, st.y2 - st.y1) * 1.1, n = Math.floor(len / 34);
   ctx.save(); ctx.fillStyle = 'rgba(170,225,255,1)';
   for (let i = 0; i < n; i++) {
@@ -1228,6 +1233,8 @@ function bar(x, y, w, h, f, c) { ctx.fillStyle = '#0009'; ctx.fillRect(x, y, w, 
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - (frame.last || now)) / 1000); frame.last = now;
+  EMA += (dt - EMA) * 0.04;
+  if (!LOWQ && EMA > 0.027 && now > 5000 && S.mode === 'game') { LOWQ = true; resize(); }   // slow device: drop to 1x resolution and skip decorative effects
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#05070f'; ctx.fillRect(0, 0, cv.width, cv.height);
   if (S.mode !== 'game') return;
   let V, me;
@@ -1348,6 +1355,7 @@ function frame(now) {
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   if (!(AH && A2(() => drawHUD2(V, me, M, now)))) drawHUD(V, me, M, now);
 }
+const slotCd = (M, j) => (M.sk[j] < 0 ? 0 : (S.host ? M.cd[M.sk[j]] : M.cd[j]));   // host ships store cooldowns per module, snapshots per slot
 function cdOverlay(b, cd, mx, col) {   // clear cooldown: dimmed button, big seconds left, and a ring that drains
   const f = clamp(cd / mx, 0, 1), txt = cd >= 10 ? String(Math.ceil(cd)) : cd.toFixed(1);
   ctx.save(); ctx.fillStyle = 'rgba(4,8,18,0.62)'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7); ctx.fill();
@@ -1356,6 +1364,7 @@ function cdOverlay(b, cd, mx, col) {   // clear cooldown: dimmed button, big sec
   ctx.restore();
 }
 function drawHUD2(V, me, M, now) {
+  if (window.__artErr) { ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.fillStyle = "#ff6b6b"; ctx.font = "12px monospace"; ctx.textAlign = "left"; ctx.fillText("ART ERR: " + window.__artErr, 10, CH - 8); }
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   if (FLASH > 0.02) { const g = ctx.createRadialGradient(CW / 2, CH / 2, Math.min(CW, CH) * 0.35, CW / 2, CH / 2, Math.max(CW, CH) * 0.7); g.addColorStop(0, 'rgba(255,40,40,0)'); g.addColorStop(1, 'rgba(255,40,40,' + (0.45 * FLASH) + ')'); ctx.fillStyle = g; ctx.fillRect(0, 0, CW, CH); }
   const Lo = layout(), L0 = SA.l + 10, T0 = SA.t + 8, cap = COND === 'capture', Zz = zoomOf(), cm = R.cam, zt0 = ZONE_T0 * (LEN === 'quick' ? 0.55 : 1);
@@ -1378,7 +1387,7 @@ function drawHUD2(V, me, M, now) {
   if (!M || !M.alive) { banner(cap && M ? 'Respawning in ' + Math.ceil(M.rs) + '…' : 'Destroyed — tap to switch spectated ship', CW / 2, CH - 30 - SA.b, '#ff7a7a'); return; }
   const lo = thresh(M.level), hi = thresh(M.level + 1), mc = H2.MODCOL || PCOL;
   H2.bars(ctx, { x: L0, y: T0, hpf: clamp(M.hp / M.hpMax, 0, 1), shf: M.shMax ? clamp(M.sh / M.shMax, 0, 1) : 0, hasShield: M.shMax > 0, xpf: M.level >= MAXLV ? 1 : clamp((M.scrap - lo) / (hi - lo), 0, 1), level: M.level, maxLevel: MAXLV, lv: M.lv, col: facC(me) }, TT);
-  for (let j = 0; j < 3; j++) { const p = M.sk[j]; H2.skillButton(ctx, Lo.btn[j], { mod: p, cd: p >= 0 ? M.cd[j] : 0, cdMax: p >= 0 ? cdMax(M.lv, p) : 1, ready: p >= 0 && M.cd[j] <= 0, col: p >= 0 ? mc[p] : '#2a3350' }, TT); if (p >= 0 && M.cd[j] > 0) cdOverlay(Lo.btn[j], M.cd[j], cdMax(M.lv, p), mc[p]); }
+  for (let j = 0; j < 3; j++) { const p = M.sk[j]; H2.skillButton(ctx, Lo.btn[j], { mod: p, cd: slotCd(M, j), cdMax: p >= 0 ? cdMax(M.lv, p) : 1, ready: p >= 0 && slotCd(M, j) <= 0, col: p >= 0 ? mc[p] : '#2a3350' }, TT); if (p >= 0 && slotCd(M, j) > 0) cdOverlay(Lo.btn[j], slotCd(M, j), cdMax(M.lv, p), mc[p]); }
   if (JOY) H2.joystick(ctx, JOY);
   if (M.emp) banner('EMP — SYSTEMS DOWN', CW / 2, CH / 2 + 110, '#9cf');
   if (M.pending > 0 && M.offers.length) {
@@ -1433,7 +1442,7 @@ function drawHUD(V, me, M, now) {
   for (let p = 0; p < NP; p++) { const x = L0 + p * 15, l = M.lv[p]; ctx.fillStyle = M.dp[p] ? '#5a1d1d' : l ? PCOL[p] + 'cc' : '#12172a'; ctx.fillRect(x, T0 + 38, 13, 13); ctx.fillStyle = l ? '#000' : '#4a5270'; ctx.font = 'bold 7px system-ui'; ctx.textAlign = 'center'; ctx.fillText(PARTS[p][2], x + 6.5, T0 + 47.5); }
   // skill buttons: cooldown sweep + seconds left, pulsing ring when ready
   for (let j = 0; j < 3; j++) {
-    const b = Lo.btn[j], p = M.sk[j], has = p >= 0, cdv = has ? M.cd[j] : 0, ready = has && cdv <= 0;
+    const b = Lo.btn[j], p = M.sk[j], has = p >= 0, cdv = slotCd(M, j), ready = has && cdv <= 0;
     ctx.fillStyle = has ? '#1d2b4acc' : '#12172a99'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7); ctx.fill();
     ctx.strokeStyle = has ? PCOL[p] : '#2a3350'; ctx.lineWidth = ready ? 4 : 2; ctx.stroke();
     if (ready) { ctx.globalAlpha = 0.35 + 0.35 * Math.sin(now / 180); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(b.x, b.y, b.r + 5, 0, 7); ctx.stroke(); ctx.globalAlpha = 1; }
@@ -1458,3 +1467,11 @@ function drawHUD(V, me, M, now) {
 }
 requestAnimationFrame(frame);
 showMenu();
+
+if (/[?&]demo/.test(location.search)) {
+  S.host = true; S.name = 'Demo';
+  const pl = [{ id: S.id, name: 'You', bot: false, team: 0 }, ...[1, 2, 3].map(i => ({ id: 'bot_' + i, name: BOT_NAMES[i] + ' (bot)', bot: true, team: i % 2 }))];
+  S.lobby = { status: 'playing', seed: 0, diff: 'normal', mode: 'teams', cond: 'last', len: 'normal', players: pl };
+  startGame(S.lobby);
+  const me = G.ships[0]; me.lv = [2, 3, 2, 2, 1, 2, 2, 0, 2, 2, 0, 0, 0]; me.sk = [MIS, TOR, MIN]; me.hpMax = me.hp = 900; me.cd[MIS] = 40; me.cd[TOR] = 25; me.pending = 1; makeOffers(me); me.level = 4; me.scrap = 300;
+}
