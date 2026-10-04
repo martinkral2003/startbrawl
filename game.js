@@ -338,7 +338,7 @@ function spawnNeut(type, minD) {
 function makeOffers(s) {
   if (s.pending <= 0) { s.offers = []; return; }
   const free = s.sk.includes(-1);
-  s.offers = [...Array(NP).keys()].filter(p => s.lv[p] < 3 && (!PARTS[p][3] || s.lv[p] > 0 || free)).sort(() => Math.random() - 0.5).slice(0, 3);
+  s.offers = [...Array(NP).keys()].filter(p => p !== RAIL && s.lv[p] < 3 && (!PARTS[p][3] || s.lv[p] > 0 || free)).sort(() => Math.random() - 0.5).slice(0, 3);
 }
 function choose(s, k) {
   if (!s.alive || s.pending <= 0 || s.offers[k] == null) return;
