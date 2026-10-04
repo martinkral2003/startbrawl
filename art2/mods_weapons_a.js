@@ -32,7 +32,7 @@
   A.mods.lasers = function (c, o) {
     const r = o.r, l = o.l | 0, col = o.col || '#37c2ff', full = o.lod > 0, t = o.t || 0;
     const ys = l === 2 ? [-0.17, 0.17] : l === 3 ? [-0.27, 0, 0.27] : [0];
-    const x0 = 0.85 * r, x1 = (l === 0 ? 1.28 : l === 1 ? 1.62 : 1.5) * r;
+    const x0 = 0.8 * r, x1 = (l === 0 ? 1.08 : l === 1 ? 1.2 : 1.14) * r;   // short, stubby barrels that stay inside the nose (the beam does the reaching)
     const hw = (l === 0 ? 0.075 : l === 1 ? 0.09 : l === 2 ? 0.07 : 0.06) * r;
     // mounting block at the nose
     const mh = (ys.length > 1 ? Math.abs(ys[0]) + hw + 0.07 : hw + 0.07) * r / r;
