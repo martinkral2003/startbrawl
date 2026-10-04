@@ -539,7 +539,7 @@ function updateShip(s, dt) {
     else if (p === TOR) spawnProj(4, s.i, s.x + Math.cos(ang0) * s.rad, s.y + Math.sin(ang0) * s.rad, ang0, 300, 2.2, 55 + 15 * lv, { rad: 75 + 15 * lv });
     else if (p === MIN) {
       const own = G.mines.filter(m => m.o === s.i); if (own.length >= 2) G.mines.splice(G.mines.indexOf(own[0]), 1);
-      const r = 90 + 15 * lv, dd = aa != null ? 80 + pw * 370 : s.rad + r * 0.7, da = aa != null ? aa : s.ang + Math.PI;
+      const r = 90 + 15 * lv, dd = aa != null ? 80 + pw * 370 : s.rad + r * 0.7, da = aa != null ? aa : (Math.hypot(s.vx, s.vy) > 30 ? Math.atan2(-s.vy, -s.vx) : s.ang + Math.PI);   // behind your MOVEMENT, not your facing (you face your target while locked)
       G.mines.push({ id: G.nid++, x: s.x + Math.cos(da) * dd, y: s.y + Math.sin(da) * dd, vx: s.vx * 0.3, vy: s.vy * 0.3, o: s.i, r, life: 12, arm: 1, dmg: 28 + 8 * lv,
         ms: Array.from({ length: 5 + 2 * lv }, () => { const a = rnd(0, 6.28), rr = Math.sqrt(Math.random()) * r; return [Math.cos(a) * rr, Math.sin(a) * rr]; }) });
     } else if (p === DSH) { s.boost = 0.4; s.phase = 0.4; s.ram = new Set(); s.dashLv = lv; const da = aa != null ? aa : (ml > 0.05 ? Math.atan2(my, mx) : s.ang); s.vx += Math.cos(da) * 800; s.vy += Math.sin(da) * 800; }
