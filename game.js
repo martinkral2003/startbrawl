@@ -1472,6 +1472,12 @@ if (/[?&]demo/.test(location.search)) {
   S.host = true; S.name = 'Demo';
   const pl = [{ id: S.id, name: 'You', bot: false, team: 0 }, ...[1, 2, 3].map(i => ({ id: 'bot_' + i, name: BOT_NAMES[i] + ' (bot)', bot: true, team: i % 2 }))];
   S.lobby = { status: 'playing', seed: 0, diff: 'normal', mode: 'teams', cond: 'last', len: 'normal', players: pl };
-  startGame(S.lobby);
+  startGame(S.lobby); document.body.setAttribute("data-vp", innerWidth + "x" + innerHeight);
   const me = G.ships[0]; me.lv = [2, 3, 2, 2, 1, 2, 2, 0, 2, 2, 0, 0, 0]; me.sk = [MIS, TOR, MIN]; me.hpMax = me.hp = 900; me.cd[MIS] = 40; me.cd[TOR] = 25; me.pending = 1; makeOffers(me); me.level = 4; me.scrap = 300;
+  if (/[?&]fight/.test(location.search)) {   // store-screenshot scene: enemies right next to you, fully kitted
+    const kits = [[3, 3, 2, 3, 1, 2, 2, 2, 2, 2, 0, 1, 1], [2, 2, 2, 2, 0, 2, 1, 1, 0, 1, 0, 0, 0], [3, 2, 1, 2, 1, 1, 2, 0, 1, 2, 0, 0, 1]];
+    G.ships.forEach((o, i) => { if (!i) { o.x = 0; o.y = 0; o.ang = 0.3; return; } const an = i * 2.2 + 0.2; o.x = Math.cos(an) * 175; o.y = Math.sin(an) * 175; o.lv = kits[i - 1]; o.rad = radOf(o.lv); o.hpMax = o.hp = 800; o.sh = o.shMax = 90; });
+    me.lv = [3, 3, 3, 3, 1, 2, 2, 0, 2, 2, 0, 0, 0]; me.rad = radOf(me.lv); me.sh = me.shMax = 120;
+    G.players.forEach((p, i) => { if (i) p.bot = false; });   // hold the enemies in place so the shot has a fight in it
+  }
 }
