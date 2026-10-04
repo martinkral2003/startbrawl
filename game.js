@@ -5,7 +5,7 @@
 
 const NS = 'starbrawl2-4d7a/';
 const BROKER = new URLSearchParams(location.search).get('broker') || 'wss://broker.emqx.io:8084/mqtt';
-const MAXP = 8, R0 = 3000, ZONE_T0 = 75, ZONE_T1 = 330, ZONE_MIN = 140, DT = 1 / 30, MAXLV = 12, NP = 13, DRAG = 0.85;
+const MAXP = 8, R0 = 3000, ZONE_T0 = 75, ZONE_T1 = 330, ZONE_MIN = 140, DT = 1 / 30, MAXLV = 12, NP = 13, DRAG = 0.55;
 const TC = ['#ff5a5a', '#4da3ff'], TN = ['RED', 'BLUE'];
 const PC8 = ['#ff5a5a', '#4da3ff', '#5ee07a', '#ffd34d', '#c779ff', '#ff9a3d', '#38e0d0', '#ff7ad1'];
 const BOT_NAMES = ['Nova', 'Vega', 'Orion', 'Lyra', 'Atlas', 'Zeta', 'Kepler', 'Rigel'];
@@ -43,11 +43,30 @@ const cdMax = (lv, p) => [0, 0, 0, 0, 0, 5 - 0.4 * lv[MIS], 7 - 0.8 * lv[TOR], 1
 const isLive = t => t && !t.dead && t.alive !== false && (t.hp == null || t.hp > 0);
 const isShip = t => t && t.lv != null;
 let GMUL = 1;
+let STT = 0;
+function bez(st, u) {   // quadratic curve point + tangent
+  const a = 1 - u, x = a * a * st.x1 + 2 * a * u * st.cx + u * u * st.x2, y = a * a * st.y1 + 2 * a * u * st.cy + u * u * st.y2;
+  return [x, y, 2 * a * (st.cx - st.x1) + 2 * u * (st.x2 - st.cx), 2 * a * (st.cy - st.y1) + 2 * u * (st.y2 - st.cy)];
+}
+function buildStream(o) {
+  const st = { ...o }; if (st.cx == null) { st.cx = (st.x1 + st.x2) / 2; st.cy = (st.y1 + st.y2) / 2; }
+  if (st.str == null) st.str = 1; if (st.ph == null) st.ph = Math.random() * 6.28;
+  st.pts = []; for (let i = 0; i <= 14; i++) st.pts.push(bez(st, i / 14));
+  return st;
+}
+const streamK = st => st.str * (0.65 + 0.35 * Math.sin(STT * 0.35 + st.ph));   // currents surge and ebb
 function streamAt(streams, x, y) {
   let ax = 0, ay = 0, ins = 0;
   for (const st of streams) {
-    const dx = st.x2 - st.x1, dy = st.y2 - st.y1, l2 = dx * dx + dy * dy, t = clamp(((x - st.x1) * dx + (y - st.y1) * dy) / l2, 0, 1);
-    if (Math.hypot(x - (st.x1 + dx * t), y - (st.y1 + dy * t)) < st.w) { const l = Math.sqrt(l2); ax += dx / l * 650; ay += dy / l * 650; ins = 1; }
+    let bd = 1e9, bi = 0;
+    for (let i = 0; i < 14; i++) {
+      const p = st.pts[i], q = st.pts[i + 1], dx = q[0] - p[0], dy = q[1] - p[1], l2 = dx * dx + dy * dy || 1, t = clamp(((x - p[0]) * dx + (y - p[1]) * dy) / l2, 0, 1);
+      const d = Math.hypot(x - (p[0] + dx * t), y - (p[1] + dy * t)); if (d < bd) { bd = d; bi = i; }
+    }
+    if (bd < st.w) {
+      const p = st.pts[bi], q = st.pts[bi + 1], dx = q[0] - p[0], dy = q[1] - p[1], l = Math.hypot(dx, dy) || 1, k = streamK(st), edge = 1 - bd / st.w * 0.5;
+      ax += dx / l * 650 * k * edge; ay += dy / l * 650 * k * edge; ins = Math.max(ins, k);
+    }
   }
   return [ax, ay, ins];
 }
@@ -266,12 +285,13 @@ function newGame(L) {
     neb(-0.5, -0.45, 220); neb(0.5, 0.45, 220);
   }
   logMsg('Map: ' + LN[G.layout]);
-  const sl = (x1, y1, x2, y2, w = 120) => G.streams.push({ x1: x1 * R0, y1: y1 * R0, x2: x2 * R0, y2: y2 * R0, w });
-  if (G.layout === 0) { sl(-0.75, -0.7, 0.1, -0.72); sl(0.75, 0.7, -0.1, 0.72); sl(-0.15, 0.45, -0.15, -0.45, 100); }
-  else if (G.layout === 1) { sl(-0.3, 0, 0.3, 0); sl(0, -0.95, 0, -0.55, 110); sl(0, 0.95, 0, 0.55, 110); }
-  else { sl(-0.3, -0.8, 0.3, -0.8, 140); sl(0.3, 0.8, -0.3, 0.8, 140); }
+  const sl = (x1, y1, cx, cy, x2, y2, w = 120, str = 1) => G.streams.push({ x1: x1 * R0, y1: y1 * R0, cx: cx * R0, cy: cy * R0, x2: x2 * R0, y2: y2 * R0, w, str });
+  if (G.layout === 0) { sl(-0.75, -0.7, -0.3, -0.9, 0.1, -0.72, 120, 0.9); sl(0.75, 0.7, 0.3, 0.9, -0.1, 0.72, 120, 0.8); sl(-0.15, 0.45, -0.4, 0, -0.15, -0.45, 100, 0.6); }
+  else if (G.layout === 1) { sl(-0.3, -0.05, 0, 0.2, 0.3, -0.05, 110, 0.7); sl(0, -0.95, 0.2, -0.75, 0, -0.55, 110, 0.8); sl(0, 0.95, -0.2, 0.75, 0, 0.55, 110, 0.8); }
+  else { sl(-0.3, -0.8, 0, -0.95, 0.3, -0.8, 140, 0.7); sl(0.3, 0.8, 0, 0.95, -0.3, 0.8, 140, 0.7); }
+  G.streams = G.streams.map(buildStream);
   G.pads = [[-0.55, -0.2], [0.55, 0.2]].map(([x, y]) => ({ x: x * R0, y: y * R0, r: 110 }));   // repair relays: heal any ship inside
-  G.bea = [[0, 0], [0, -0.58], [0, 0.58]].map(([x, y]) => ({ x: x * R0, y: y * R0, r: 150, p: 0, owner: -1, cap: -1, cont: 0 }));
+  G.bea = (G.cond === 'capture' ? [[0, 0], [0, -0.58], [0, 0.58]] : []).map(([x, y]) => ({ x: x * R0, y: y * R0, r: 150, p: 0, owner: -1, cap: -1, cont: 0 }));
   for (let i = 0; i < (G.layout === 1 ? 20 : 46); i++) spawnAst(220);
   for (let i = 0; i < 7; i++) bigRock();
   for (let i = 0; i < 18; i++) spawnNeut(0, 260);
@@ -419,7 +439,7 @@ function updateShip(s, dt) {
   const [gx, gy] = gravAt(G.wells, s.x, s.y); s.vx += gx * dt; s.vy += gy * dt;
   const [qx, qy, inSt] = streamAt(G.streams, s.x, s.y); s.vx += qx * dt; s.vy += qy * dt;
   const kd = Math.exp(-DRAG * dt); s.vx *= kd; s.vy *= kd;
-  const vm = st.vmax * (s.boost > 0 ? 2.2 : 1) * (inNeb ? 0.65 : 1) * (inSt ? 1.8 : 1) * (s.slow > 0 ? 0.55 : 1), sp = Math.hypot(s.vx, s.vy);
+  const vm = st.vmax * (s.boost > 0 ? 2.2 : 1) * (inNeb ? 0.65 : 1) * (1 + 0.8 * inSt) * (s.slow > 0 ? 0.55 : 1), sp = Math.hypot(s.vx, s.vy);
   if (sp > vm) { s.vx *= vm / sp; s.vy *= vm / sp; }
   // facing: toward the locked target if any (so you can drift around it), otherwise toward the stick direction
   const lock = tgtObj(I.tg), lockOk = lock && enemyOf(s, lock) && dist(s, lock) <= 720;
@@ -560,7 +580,7 @@ function updateNeut(n, dt) {
 }
 
 function stepOnce(dt) {
-  G.t += dt; G.z = G.cond === 'capture' ? R0 : zoneR(G.t);
+  G.t += dt; STT = G.t; G.z = G.cond === 'capture' ? R0 : zoneR(G.t);
   if (G.bh) { G.bh.x = G.bhs * Math.sin(G.t * 0.04) * R0 * 0.25; G.bh.y = Math.cos(G.t * 0.06) * R0 * 0.3; }
   for (const w of G.wells) if (w.life != null && w.o != null) for (const sh of G.ships) if (sh.alive && teamOf(sh.i) !== teamOf(w.o) && Math.hypot(sh.x - w.x, sh.y - w.y) < w.gr * 0.7) sh.slow = Math.max(sh.slow || 0, 0.5);
   G.wells = G.wells.filter(w => { if (w.life == null) return true; if ((w.life -= dt) > 0) return true; if (w.o != null) collapseWell(w); return false; });
@@ -715,7 +735,7 @@ function publish(now) {
     m: G.mines.map(m => [r0(m.x), r0(m.y), teamOf(m.o), m.r, +m.life.toFixed(1)]),
     wl: G.wells.map(w => [w.type, r0(w.x), r0(w.y), w.r, w.gr, w.g, w.life != null ? +w.life.toFixed(1) : 0]), pt: G.portals.map(p => [r0(p.x), r0(p.y)]),
     b: G.bea.map(b => [r0(b.x), r0(b.y), r0(b.p * 100), b.owner, b.cont, b.cap]), pd: G.pads.map(p => [r0(p.x), r0(p.y)]),
-    nb: G.nebs.map(n => [r0(n.x), r0(n.y), n.r]), sm: G.streams.map(m => [r0(m.x1), r0(m.y1), r0(m.x2), r0(m.y2), m.w]),
+    nb: G.nebs.map(n => [r0(n.x), r0(n.y), n.r]), sm: G.streams.map(m => [r0(m.x1), r0(m.y1), r0(m.x2), r0(m.y2), m.w, r0(m.cx), r0(m.cy), +m.str.toFixed(2), +m.ph.toFixed(2)]),
     io: G.ion ? [r0(G.ion.x), r0(G.ion.y), G.ion.r] : 0, gs: +Math.max(0, G.surge).toFixed(1), ly: G.layout,
   });
 }
@@ -798,7 +818,7 @@ function decode(w, at) {
     pick: w.k.map(a => ({ t: a[0], x: a[1], y: a[2] })), mines: w.m.map(a => ({ x: a[0], y: a[1], fac: a[2], r: a[3], life: a[4] })),
     wells: w.wl.map(a => ({ type: a[0], x: a[1], y: a[2], r: a[3], gr: a[4], g: a[5], life: a[6] || 0 })), portals: w.pt.map(a => ({ x: a[0], y: a[1] })),
     bea: w.b.map(a => ({ x: a[0], y: a[1], p: a[2] / 100, owner: a[3], cont: a[4], cap: a[5], r: 150 })),
-    nebs: w.nb.map(a => ({ x: a[0], y: a[1], r: a[2] })), streams: w.sm.map(a => ({ x1: a[0], y1: a[1], x2: a[2], y2: a[3], w: a[4] })),
+    nebs: w.nb.map(a => ({ x: a[0], y: a[1], r: a[2] })), streams: w.sm.map(a => buildStream({ x1: a[0], y1: a[1], x2: a[2], y2: a[3], w: a[4], cx: a[5], cy: a[6], str: a[7], ph: a[8] })),
     ion: w.io ? { x: w.io[0], y: w.io[1], r: w.io[2] } : null, surge: w.gs, layout: w.ly, pads: w.pd.map(a => ({ x: a[0], y: a[1], r: 110 })),
   };
 }
@@ -806,7 +826,7 @@ function onState(m) {
   if (S.host || S.mode !== 'game' || !m || !C) return;
   const snap = decode(m, performance.now());
   C.snaps.push(snap); if (C.snaps.length > 8) C.snaps.shift();
-  C.last = snap; GMUL = snap.surge > 0 ? 2 : 1; processEvents(snap.ev); snap.lg.forEach(addLog);
+  C.last = snap; STT = snap.t; GMUL = snap.surge > 0 ? 2 : 1; processEvents(snap.ev); snap.lg.forEach(addLog);
   if (snap.over && !C.over) { C.over = true; showOver(snap.winner); }
 }
 function buildView(now) {
@@ -841,7 +861,7 @@ function predict(dt, inp) {
   const [qx, qy, inSt] = streamAt(L.streams, P.x, P.y), inNeb = L.nebs.some(n => Math.hypot(P.x - n.x, P.y - n.y) < n.r);
   const sf = ms.slow ? 0.6 : 1; P.vx += (mx * st.acc * sf + gx + qx) * dt; P.vy += (my * st.acc * sf + gy + qy) * dt;
   const kd = Math.exp(-DRAG * dt); P.vx *= kd; P.vy *= kd;
-  const vm = st.vmax * (ms.boost ? 2.2 : 1) * (inNeb ? 0.65 : 1) * (inSt ? 1.8 : 1) * (ms.slow ? 0.55 : 1), sp = Math.hypot(P.vx, P.vy);
+  const vm = st.vmax * (ms.boost ? 2.2 : 1) * (inNeb ? 0.65 : 1) * (1 + 0.8 * inSt) * (ms.slow ? 0.55 : 1), sp = Math.hypot(P.vx, P.vy);
   if (sp > vm) { P.vx *= vm / sp; P.vy *= vm / sp; }
   const T = lockedFrom(L, myTg), fa = T ? Math.atan2(T.y - P.y, T.x - P.x) : (ml > 0.05 ? Math.atan2(my, mx) : null);
   if (fa != null) P.ang += clamp(angDiff(P.ang, fa), -st.turn * dt, st.turn * dt);
@@ -1030,13 +1050,13 @@ function drawShipOld(s, isMe) {
   if (s.shMax > 0) { ctx.fillStyle = '#6cf'; ctx.fillRect(s.x - w / 2, y - 4, w * clamp(s.sh / s.shMax, 0, 1), 3); }
   ctx.fillStyle = '#cfd6e6'; ctx.font = '11px system-ui'; ctx.textAlign = 'center'; ctx.fillText(PL[s.i].name, s.x, y - 9);
 }
-function drawStreamFlow(st, tt) {   // faint bubbles drifting along the current
-  const dx = st.x2 - st.x1, dy = st.y2 - st.y1, len = Math.hypot(dx, dy), ux = dx / len, uy = dy / len, n = Math.floor(len / 38);
+function drawStreamFlow(st, tt) {   // faint bubbles drifting along a curved current; denser/brighter when it is strong
+  const k = streamK(st), len = Math.hypot(st.x2 - st.x1, st.y2 - st.y1) * 1.1, n = Math.floor(len / 34);
   ctx.save(); ctx.fillStyle = 'rgba(170,225,255,1)';
   for (let i = 0; i < n; i++) {
     const h = Math.sin((i + st.x1 * 0.013) * 12.9898) * 43758.5453, r1 = h - Math.floor(h), h2 = Math.sin((i + st.y1 * 0.017) * 78.233) * 12345.678, r2 = h2 - Math.floor(h2);
-    const u = (i / n + tt * (120 + 90 * r1) / len) % 1, off = (r2 - 0.5) * 2 * st.w * 0.9, a = Math.sin(u * Math.PI);
-    ctx.globalAlpha = 0.1 + 0.28 * a * (0.4 + r2 * 0.6); ctx.beginPath(); ctx.arc(st.x1 + ux * len * u - uy * off, st.y1 + uy * len * u + ux * off, 1 + r1 * 2.4, 0, 7); ctx.fill();
+    const u = (i / n + tt * (90 + 90 * r1) * k / len) % 1, off = (r2 - 0.5) * 2 * st.w * 0.9, a = Math.sin(u * Math.PI), b = bez(st, u), tl = Math.hypot(b[2], b[3]) || 1;
+    ctx.globalAlpha = (0.08 + 0.3 * a * (0.4 + r2 * 0.6)) * (0.35 + 0.65 * k); ctx.beginPath(); ctx.arc(b[0] - b[3] / tl * off, b[1] + b[2] / tl * off, 1 + r1 * 2.4, 0, 7); ctx.fill();
   }
   ctx.restore();
 }
