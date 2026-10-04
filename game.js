@@ -80,7 +80,11 @@ function gravAt(wells, x, y) {
 }
 
 const ui = $('ui');
-const panel = html => { ui.innerHTML = html ? `<div class="panel">${html}</div>` : ''; };
+const panel = html => {   // keep the scroll position when the lobby re-renders after a button press
+  const old = ui.firstChild, st = old && old.scrollTop || 0;
+  ui.innerHTML = html ? `<div class="panel">${html}</div>` : '';
+  if (st && ui.firstChild) ui.firstChild.scrollTop = st;
+};
 const S = { id: rid(), name: '', mode: 'menu', host: false, code: '', base: '', c: null, lobby: null, timer: null };
 try { S.name = localStorage.getItem('sb_name') || ''; } catch (e) {}
 const ART2 = !!(window.Art2 && Art2.ship && Art2.weapons && Art2.fx && Art2.shield);   // shaded sprites from art2/*.js (falls back to basic shapes)
@@ -172,7 +176,7 @@ function createRoom() {
   const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   const code = Array.from({ length: 4 }, () => letters[Math.floor(Math.random() * letters.length)]).join('');
   S.host = true; S.mode = 'lobby';
-  S.lobby = { status: 'waiting', seed: 0, diff: 'normal', mode: 'teams', cond: 'last', len: 'normal', players: [{ id: S.id, name: S.name, bot: false, team: 0 }] };
+  S.lobby = { status: 'waiting', seed: 0, diff: 'normal', mode: 'ffa', cond: 'last', len: 'normal', players: [{ id: S.id, name: S.name, bot: false, team: 0 }] };
   connect(code, true); showLobby();
 }
 function joinRoom() {
