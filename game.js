@@ -39,7 +39,7 @@ const radOf = lv => 15 + Math.min(14, lv.reduce((a, b) => a + b, 0) * 0.5);
 const thresh = n => (40 * n + 8 * n * n) * (LEN === 'quick' ? 0.7 : 1);
 const zoneR = t => { const f = LEN === 'quick' ? 0.55 : 1, a = ZONE_T0 * f, b = ZONE_T1 * f; return t < a ? R0 : Math.max(ZONE_MIN, R0 - (R0 - ZONE_MIN) * (t - a) / (b - a)); };
 const stats = s => { const e = eff(s, ENG); return { acc: 480 + 80 * e, vmax: 230 + 35 * e, turn: 4 + 1.5 * e }; };
-const cdMax = (lv, p) => [0, 0, 0, 0, 0, 6 - 0.5 * lv[MIS], 9 - lv[TOR], 16 - 2 * lv[DRN], 12 - lv[MIN], 5, 8 - lv[RAIL], 12 - 1.5 * lv[GRV], 10 - lv[PUL]][p];
+const cdMax = (lv, p) => [0, 0, 0, 0, 0, 5 - 0.4 * lv[MIS], 7 - 0.8 * lv[TOR], 13 - 1.6 * lv[DRN], 9.5 - 0.8 * lv[MIN], 4, 6.5 - 0.8 * lv[RAIL], 9.5 - 1.2 * lv[GRV], 8 - 0.8 * lv[PUL]][p];
 const isLive = t => t && !t.dead && t.alive !== false && (t.hp == null || t.hp > 0);
 const isShip = t => t && t.lv != null;
 let GMUL = 1;
@@ -68,6 +68,7 @@ const ART2 = !!(window.Art2 && Art2.ship && Art2.weapons && Art2.fx && Art2.shie
 const W2 = (window.Art2 && Art2.world) || {}, H2 = (window.Art2 && Art2.hud) || {}, B2 = (window.Art2 && Art2.bg) || {};
 const AH = !!(H2.top && H2.bars && H2.skillButton && H2.upgradeCard && H2.joystick);
 function A2(fn) { try { fn(); return true; } catch (e) { if (!window.__artErr) { window.__artErr = e.message; console.error('Art2', e); } return false; } }
+let SHAKE = 0, FLASH = 0;
 let AIMING = null, AIMV = [null, null, null], CUR = null; const TELE = [];
 let FIRE = {}, HIT = {}, THR = {}, PB = {}, FDT = 0.016, FZ = 1, TT = 0; const SHA = [];
 let G = null, C = null, PL = [], simTimer = null, inputTimer = null, MODE = 'teams', COND = 'last', LEN = 'normal';
@@ -265,9 +266,14 @@ function newGame(L) {
     neb(-0.5, -0.45, 220); neb(0.5, 0.45, 220);
   }
   logMsg('Map: ' + LN[G.layout]);
+  const sl = (x1, y1, x2, y2, w = 120) => G.streams.push({ x1: x1 * R0, y1: y1 * R0, x2: x2 * R0, y2: y2 * R0, w });
+  if (G.layout === 0) { sl(-0.75, -0.7, 0.1, -0.72); sl(0.75, 0.7, -0.1, 0.72); sl(-0.15, 0.45, -0.15, -0.45, 100); }
+  else if (G.layout === 1) { sl(-0.3, 0, 0.3, 0); sl(0, -0.95, 0, -0.55, 110); sl(0, 0.95, 0, 0.55, 110); }
+  else { sl(-0.3, -0.8, 0.3, -0.8, 140); sl(0.3, 0.8, -0.3, 0.8, 140); }
   G.pads = [[-0.55, -0.2], [0.55, 0.2]].map(([x, y]) => ({ x: x * R0, y: y * R0, r: 110 }));   // repair relays: heal any ship inside
   G.bea = [[0, 0], [0, -0.58], [0, 0.58]].map(([x, y]) => ({ x: x * R0, y: y * R0, r: 150, p: 0, owner: -1, cap: -1, cont: 0 }));
   for (let i = 0; i < (G.layout === 1 ? 20 : 46); i++) spawnAst(220);
+  for (let i = 0; i < 7; i++) bigRock();
   for (let i = 0; i < 18; i++) spawnNeut(0, 260);
   for (let i = 0; i < 3; i++) spawnNeut(1, 260);
   for (let i = 0; i < 3; i++) spawnNeut(3, 400);   // sentry turret platforms
@@ -278,6 +284,10 @@ function freeSpot(minD, frac) {
     if (G.ships.every(s => !s.alive || dist(s, p) > minD) && G.wells.every(w => dist(w, p) > w.r + (w.type === 1 ? w.gr : w.type === 2 ? 240 : 90)) && G.bea.every(b => dist(b, p) > 170)) return p;
   }
   return null;
+}
+function bigRock() {   // large indestructible rocks: cover that blocks shots and ships
+  const p = freeSpot(320, 0.85); if (!p) return; const r = rnd(70, 115);
+  G.ast.push({ id: G.nid++, x: p.x, y: p.y, r, hp: 1e6, hpMax: 1e6, big: 1 });
 }
 function ringAst() {
   let a = rnd(0, 6.283); for (let k = 0; k < 8 && Math.abs(Math.sin(2 * a)) < 0.2; k++) a = rnd(0, 6.283);   // leave 4 gaps in the ring
@@ -592,6 +602,7 @@ function stepOnce(dt) {
   for (let i = G.pick.length - 1; i >= 0; i--) {
     const c = G.pick[i]; c.life -= dt;
     const [gx, gy] = gravAt(G.wells, c.x, c.y); c.vx += gx * dt; c.vy += gy * dt;
+    const [qx2, qy2] = streamAt(G.streams, c.x, c.y); c.vx += qx2 * dt * 0.4; c.vy += qy2 * dt * 0.4;
     c.x += c.vx * dt; c.y += c.vy * dt; c.vx *= 0.96; c.vy *= 0.96;
     let taken = false;
     for (const s of G.ships) {
@@ -939,14 +950,15 @@ function nearestShip(x, y, d) {
   return b;
 }
 function processEvents2(list) {
+  const myi = S.host ? (G ? G.me : -1) : (C ? C.me : -1);
   try {
     for (const [t, x, y, r] of list) {
       if (t === 'f') FIRE[r] = 1;
-      else if (t === 'h') { const sh = nearestShip(x, y, 80); if (sh) HIT[sh.i] = 0.6; Art2.fx.spawn('spark', x, y, {}); }
-      else if (t === 's') { const sh = nearestShip(x, y, 110); if (sh) Art2.shield.hit(sh.i, Math.atan2(y - sh.y, x - sh.x), 1); }
-      else if (t === 'x') Art2.fx.spawn('explosion', x, y, { size: r < 40 ? 'small' : r < 120 ? 'medium' : 'large' });
+      else if (t === 'h') { const sh = nearestShip(x, y, 80); if (sh) { HIT[sh.i] = 0.6; if (sh.i === myi) { SHAKE = Math.max(SHAKE, 7); FLASH = Math.min(1, FLASH + 0.45); } } Art2.fx.spawn('spark', x, y, {}); }
+      else if (t === 's') { const sh = nearestShip(x, y, 110); if (sh) { Art2.shield.hit(sh.i, Math.atan2(y - sh.y, x - sh.x), 1); if (sh.i === myi) SHAKE = Math.max(SHAKE, 3); } }
+      else if (t === 'x') { Art2.fx.spawn('explosion', x, y, { size: r < 40 ? 'small' : r < 120 ? 'medium' : 'large' }); const mv = VIEWNOW && VIEWNOW.ships[myi]; if (mv && mv.alive) { const d = Math.hypot(mv.x - x, mv.y - y); if (d < 500) SHAKE = Math.max(SHAKE, (r < 40 ? 3 : 9) * (1 - d / 500)); } }
       else if (t === 'k') Art2.fx.spawn('shockwave', x, y, { r, col: '#9ff' });
-      else if (t === 'd') Art2.fx.spawn('death', x, y, { col: PL[r] ? facC(r) : '#fff' });
+      else if (t === 'd') { Art2.fx.spawn('death', x, y, { col: PL[r] ? facC(r) : '#fff' }); const mv = VIEWNOW && VIEWNOW.ships[myi]; if (mv && mv.alive) { const d = Math.hypot(mv.x - x, mv.y - y); if (d < 700) SHAKE = Math.max(SHAKE, 11 * (1 - d / 700)); } }
       else if (t === 'w') Art2.fx.spawn('shockwave', x, y, { r: 80, col: '#8ff' });
       else if (t === 'g') TELE.push({ x, y, a: r / 100, until: performance.now() + 450 });
     }
@@ -1018,6 +1030,16 @@ function drawShipOld(s, isMe) {
   if (s.shMax > 0) { ctx.fillStyle = '#6cf'; ctx.fillRect(s.x - w / 2, y - 4, w * clamp(s.sh / s.shMax, 0, 1), 3); }
   ctx.fillStyle = '#cfd6e6'; ctx.font = '11px system-ui'; ctx.textAlign = 'center'; ctx.fillText(PL[s.i].name, s.x, y - 9);
 }
+function drawStreamFlow(st, tt) {   // faint bubbles drifting along the current
+  const dx = st.x2 - st.x1, dy = st.y2 - st.y1, len = Math.hypot(dx, dy), ux = dx / len, uy = dy / len, n = Math.floor(len / 38);
+  ctx.save(); ctx.fillStyle = 'rgba(170,225,255,1)';
+  for (let i = 0; i < n; i++) {
+    const h = Math.sin((i + st.x1 * 0.013) * 12.9898) * 43758.5453, r1 = h - Math.floor(h), h2 = Math.sin((i + st.y1 * 0.017) * 78.233) * 12345.678, r2 = h2 - Math.floor(h2);
+    const u = (i / n + tt * (120 + 90 * r1) / len) % 1, off = (r2 - 0.5) * 2 * st.w * 0.9, a = Math.sin(u * Math.PI);
+    ctx.globalAlpha = 0.1 + 0.28 * a * (0.4 + r2 * 0.6); ctx.beginPath(); ctx.arc(st.x1 + ux * len * u - uy * off, st.y1 + uy * len * u + ux * off, 1 + r1 * 2.4, 0, 7); ctx.fill();
+  }
+  ctx.restore();
+}
 function drawSentry(n) {
   ctx.save(); ctx.translate(n.x, n.y);
   const g = ctx.createRadialGradient(-6, -8, 2, 0, 0, 24); g.addColorStop(0, '#9aa3b8'); g.addColorStop(1, '#232838'); ctx.fillStyle = g;
@@ -1083,6 +1105,7 @@ function frame(now) {
   if (fo) { if (!R.cam) R.cam = { x: fo.x, y: fo.y }; const k = fo === M ? 1 : Math.min(1, 6 * dt); R.cam.x += (fo.x - R.cam.x) * k; R.cam.y += (fo.y - R.cam.y) * k; }
   if (!R.cam) return;
   const Z = zoomOf(), cam = R.cam, tt = now / 1000; FDT = dt; FZ = Z; TT = tt;
+  if (SHAKE > 0.3) { cam.x += (Math.random() - 0.5) * SHAKE; cam.y += (Math.random() - 0.5) * SHAKE; } SHAKE *= Math.exp(-9 * dt); FLASH = Math.max(0, FLASH - dt * 2.2);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   if (!(B2.draw && A2(() => B2.draw(ctx, { x: cam.x, y: cam.y, zoom: Z, w: CW, h: CH }, tt, V.layout || 0)))) for (const st of stars) { const x = (((st.x * CW - cam.x * st.z * Z) % CW) + CW) % CW, y = (((st.y * CH - cam.y * st.z * Z) % CH) + CH) % CH; ctx.fillStyle = `rgba(200,215,255,${0.25 + st.z})`; ctx.fillRect(x, y, st.z * 3, st.z * 3); }
   ctx.setTransform(DPR * Z, 0, 0, DPR * Z, DPR * (CW / 2 - cam.x * Z), DPR * (CH / 2 - cam.y * Z));
@@ -1104,7 +1127,7 @@ function frame(now) {
   }
   for (const n of V.nebs) { if (W2.nebula && A2(() => W2.nebula(ctx, n, tt))) continue; const g = ctx.createRadialGradient(n.x, n.y, n.r * 0.2, n.x, n.y, n.r); g.addColorStop(0, 'rgba(150,90,220,0.38)'); g.addColorStop(1, 'rgba(90,40,160,0.05)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, 7); ctx.fill(); ctx.strokeStyle = 'rgba(190,140,255,0.35)'; ctx.lineWidth = 2; ctx.setLineDash([4, 10]); ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
   for (const st of V.streams) {
-    if (W2.stream && A2(() => W2.stream(ctx, st, tt))) continue;
+    drawStreamFlow(st, tt); continue;
     const dx = st.x2 - st.x1, dy = st.y2 - st.y1, len = Math.hypot(dx, dy);
     ctx.save(); ctx.translate(st.x1, st.y1); ctx.rotate(Math.atan2(dy, dx)); ctx.fillStyle = 'rgba(80,200,255,0.10)'; ctx.fillRect(0, -st.w, len, st.w * 2);
     ctx.strokeStyle = 'rgba(120,220,255,0.7)'; ctx.lineWidth = 3; for (let x = (tt * 160) % 90; x < len; x += 90) { ctx.beginPath(); ctx.moveTo(x, -22); ctx.lineTo(x + 18, 0); ctx.lineTo(x, 22); ctx.stroke(); }
@@ -1175,6 +1198,7 @@ function frame(now) {
 }
 function drawHUD2(V, me, M, now) {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  if (FLASH > 0.02) { const g = ctx.createRadialGradient(CW / 2, CH / 2, Math.min(CW, CH) * 0.35, CW / 2, CH / 2, Math.max(CW, CH) * 0.7); g.addColorStop(0, 'rgba(255,40,40,0)'); g.addColorStop(1, 'rgba(255,40,40,' + (0.45 * FLASH) + ')'); ctx.fillStyle = g; ctx.fillRect(0, 0, CW, CH); }
   const Lo = layout(), L0 = SA.l + 10, T0 = SA.t + 8, cap = COND === 'capture', Zz = zoomOf(), cm = R.cam, zt0 = ZONE_T0 * (LEN === 'quick' ? 0.55 : 1);
   // edge pointers to beacons / Leviathan / supply drops when off-screen
   const arrow = (wx, wy, col) => {
