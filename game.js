@@ -88,7 +88,7 @@ const W2 = (window.Art2 && Art2.world) || {}, H2 = (window.Art2 && Art2.hud) || 
 const AH = !!(H2.top && H2.bars && H2.skillButton && H2.upgradeCard && H2.joystick);
 function A2(fn) { try { fn(); return true; } catch (e) { if (!window.__artErr) { window.__artErr = e.message; console.error('Art2', e); } return false; } }
 let SHAKE = 0, FLASH = 0;
-let AIMING = null, AIMV = [null, null, null], CUR = null; const TELE = [];
+let AIMING = null, AIMV = [null, null, null], CUR = null; const TELE = [], BEAMS = [];
 let FIRE = {}, HIT = {}, THR = {}, PB = {}, FDT = 0.016, FZ = 1, TT = 0; const SHA = [];
 let G = null, C = null, PL = [], simTimer = null, inputTimer = null, MODE = 'teams', COND = 'last', LEN = 'normal';
 const FC = f => (MODE === 'teams' ? TC[f] : PC8[f]);
@@ -246,13 +246,13 @@ function startGame(L) {
 const ev = (t, x, y, r = 0) => { const e = [t, Math.round(x), Math.round(y), Math.round(r)]; G.evPub.push(e); G.evLoc.push(e); };
 const logMsg = t => { G.logPub.push(t); G.logLoc.push(t); };
 const teamOf = i => G.players[i].fac;
-const enemyOf = (s, t) => (isShip(t) ? t.alive && teamOf(t.i) !== teamOf(s.i) : isLive(t));
+const enemyOf = (s, t) => (isShip(t) ? t.alive && teamOf(t.i) !== teamOf(s.i) : isLive(t) && t.type !== 5 && !(t.type === 6 && teamOf(t.ow) === teamOf(s.i)));
 
 function newGame(L) {
   G = { players: L.players, diff: L.diff || 'normal', mode: MODE, cond: COND, NF: MODE === 'teams' ? 2 : L.players.length, shares: Array(MODE === 'teams' ? 2 : L.players.length).fill(1 / (MODE === 'teams' ? 2 : L.players.length)), t: 0, acc: 0, last: performance.now(), lastPub: 0, pubN: 0, over: false, winner: -1,
     me: L.players.findIndex(p => p.id === S.id), z: R0, ships: [], neut: [], ast: [], proj: [], pick: [], mines: [], drops: [],
     evPub: [], evLoc: [], logPub: [], logLoc: [], nid: 1, spawnT: 0, dropT: ZONE_T0, boss: false, bhs: Math.random() < 0.5 ? 1 : -1, shower: 0, events: [{ t: 95, k: 'surge' }, { t: 150, k: 'meteor' }, { t: 175, k: 'ion' }, { t: 205, k: 'surge' }, { t: 235, k: 'meteor' }], surge: 0, ion: null, showerT: 0 };
-  G.lenF = LEN === 'quick' ? 0.55 : 1; G.events.forEach(e => { e.t *= G.lenF; }); G.dropT = ZONE_T0 * G.lenF; G.relics = [85, 175, 265].map(t => ({ t: t * G.lenF })); G.cometT = 40 * G.lenF;
+  G.lenF = LEN === 'quick' ? 0.55 : 1; G.events.forEach(e => { e.t *= G.lenF; }); G.dropT = ZONE_T0 * G.lenF; G.relics = [85, 175, 265].map(t => ({ t: t * G.lenF })); G.cometT = 40 * G.lenF; G.sosT = 0; G.warT = 0;
   const np = L.players.length, cnt = [0, 0], tot = [teamCount(L, 0), teamCount(L, 1)];
   L.players.forEach((p, i) => {
     const t = p.team, k = cnt[t]++, side = t ? 1 : -1, ra = i / np * Math.PI * 2;
@@ -297,6 +297,9 @@ function newGame(L) {
   for (let i = 0; i < 18; i++) spawnNeut(0, 260);
   for (let i = 0; i < 3; i++) spawnNeut(1, 260);
   for (let i = 0; i < 3; i++) spawnNeut(3, 400);   // sentry turret platforms
+  for (let i = 0; i < 2; i++) spawnNeut(5, 500);   // stranded ships to rescue
+  for (let i = 0; i < 3; i++) debrisField();
+  for (let i = 0; i < 2; i++) richCluster();
 }
 function freeSpot(minD, frac) {
   for (let k = 0; k < 14; k++) {
@@ -304,6 +307,14 @@ function freeSpot(minD, frac) {
     if (G.ships.every(s => !s.alive || dist(s, p) > minD) && G.wells.every(w => dist(w, p) > w.r + (w.type === 1 ? w.gr : w.type === 2 ? 240 : 90)) && G.bea.every(b => dist(b, p) > 170)) return p;
   }
   return null;
+}
+function debrisField() {
+  const p = freeSpot(300, 0.75); if (!p) return; const a = rnd(0, 6.28), sp = rnd(35, 60), vx = Math.cos(a) * sp, vy = Math.sin(a) * sp;
+  for (let i = 0; i < 12; i++) { const r = rnd(10, 22), aa = rnd(0, 6.28), rr = rnd(0, 170); G.ast.push({ id: G.nid++, x: p.x + Math.cos(aa) * rr, y: p.y + Math.sin(aa) * rr, r, hp: r * 1.2, hpMax: r * 1.2, vx: vx + rnd(-8, 8), vy: vy + rnd(-8, 8), deb: 1 }); }
+}
+function richCluster() {
+  const p = freeSpot(300, 0.75); if (!p) return;
+  for (let i = 0; i < 7; i++) { const r = rnd(24, 40), aa = rnd(0, 6.28), rr = rnd(0, 160); G.ast.push({ id: G.nid++, x: p.x + Math.cos(aa) * rr, y: p.y + Math.sin(aa) * rr, r, hp: r * 2.2, hpMax: r * 2.2, rich: 1 }); }
 }
 function bigRock() {   // large indestructible rocks: cover that blocks shots and ships
   const p = freeSpot(320, 0.85); if (!p) return; const r = rnd(70, 115);
@@ -317,8 +328,8 @@ function ringAst() {
 function spawnAst(minD) { const p = freeSpot(minD, 0.92); if (!p) return; const r = rnd(16, 40); G.ast.push({ id: G.nid++, x: p.x, y: p.y, r, hp: r * 2.2, hpMax: r * 2.2 }); }
 function spawnNeut(type, minD) {
   const p = type === 2 ? { x: 0, y: -0.25 * G.z } : freeSpot(minD, 0.85); if (!p) return;
-  const hp = [30, 140, 1400, 320][type], rad = [13, 26, 70, 22][type];
-  G.neut.push({ id: G.nid++, type, x: p.x, y: p.y, vx: 0, vy: 0, ang: rnd(0, 6.28), hp, hpMax: hp, gx: p.x, gy: p.y, shT: rnd(0, 1), rad, by: -1 });
+  const hp = [30, 140, 1400, 320, 700, 150, 220][type], rad = [13, 26, 70, 22, 36, 18, 18][type];
+  G.neut.push({ id: G.nid++, type, x: p.x, y: p.y, vx: 0, vy: 0, ang: rnd(0, 6.28), hp, hpMax: hp, gx: p.x, gy: p.y, shT: rnd(0, 1), rad, by: -1, ow: -1, res: 0 });
 }
 function makeOffers(s) {
   if (s.pending <= 0) { s.offers = []; return; }
@@ -370,10 +381,11 @@ function dropOrbs(x, y, total, n) {
   for (let i = 0; i < n; i++) { const a = rnd(0, 6.283), sp = rnd(30, 110); G.pick.push({ id: G.nid++, t: 0, x, y, v: total / n, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 60 }); }
 }
 function hurtNeut(n, dmg, x, y, by) {
-  if (n.dead) return;
+  if (n.dead || n.type === 5 || (n.type === 6 && by >= 0 && teamOf(by) === teamOf(n.ow))) return;
   n.hp -= dmg; ev('h', x, y); if (by >= 0) n.by = by;
   if (n.hp > 0) return;
   n.dead = true; ev('x', n.x, n.y, n.rad * 2);
+  if (n.type === 6) { logMsg('An escort ship was destroyed'); return; }
   if (n.type === 2) {
     dropOrbs(n.x, n.y, 220, 10);
     for (let i = 0; i < 3; i++) G.pick.push({ id: G.nid++, t: 1, x: n.x + rnd(-40, 40), y: n.y + rnd(-40, 40), v: 0, vx: 0, vy: 0, life: 60 });
@@ -381,14 +393,14 @@ function hurtNeut(n, dmg, x, y, by) {
     if (k && k.alive) { k.pending += 2; makeOffers(k); k.hp = k.hpMax; logMsg(`${G.players[k.i].name} slew the Leviathan and claimed a relic (+2 upgrades)!`); }
     else logMsg('The Leviathan was destroyed');
   } else {
-    dropOrbs(n.x, n.y, n.type ? 35 : 10, n.type ? 5 : 2);
+    dropOrbs(n.x, n.y, n.type === 4 ? 120 : n.type ? 35 : 10, n.type === 4 ? 8 : n.type ? 5 : 2);
     if (n.type && Math.random() < 0.6) G.pick.push({ id: G.nid++, t: 1, x: n.x, y: n.y, v: 0, vx: 0, vy: 0, life: 60 });
   }
 }
 function hurtAst(a, dmg, x, y) {
   if (a.dead) return;
   a.hp -= dmg; ev('h', x, y);
-  if (a.hp <= 0) { a.dead = true; ev('x', a.x, a.y, a.r); dropOrbs(a.x, a.y, a.r * 0.25, 1); }
+  if (a.hp <= 0) { a.dead = true; ev('x', a.x, a.y, a.r); if (a.rich) dropOrbs(a.x, a.y, a.r * 1.5, 3); else dropOrbs(a.x, a.y, a.r * 0.25, 1); }
 }
 function spawnProj(k, o, x, y, ang, speed, life, dmg, extra) {
   G.proj.push(Object.assign({ k, o, x, y, vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed, life, dmg, tg: null }, extra));
@@ -410,7 +422,7 @@ function nearest(list, from, maxD = 1e9) {
   return best;
 }
 const enemyShips = s => G.ships.filter(o => o.alive && teamOf(o.i) !== teamOf(s.i));
-const targetsFor = owner => (owner >= 0 ? G.ships.filter(o => o.alive && teamOf(o.i) !== teamOf(owner)) : G.ships.filter(o => o.alive)).concat(G.neut.filter(n => !n.dead));
+const targetsFor = owner => (owner >= 0 ? G.ships.filter(o => o.alive && teamOf(o.i) !== teamOf(owner)) : G.ships.filter(o => o.alive)).concat(G.neut.filter(n => !n.dead && (n.type <= 4 || (n.type === 6 && (owner < 0 || teamOf(n.ow) !== teamOf(owner))))));
 function tgtObj(str) {
   if (!str) return null;
   const k = str[0], id = +str.slice(1);
@@ -418,6 +430,23 @@ function tgtObj(str) {
 }
 function idStr(t) { return isShip(t) ? 's' + t.i : t.type != null ? 'n' + t.id : 'a' + t.id; }
 
+function segBlock(x1, y1, x2, y2, ignore) {   // first rock / planet / star on the segment
+  const dx = x2 - x1, dy = y2 - y1, l2 = dx * dx + dy * dy || 1; let best = null, bu = 2;
+  const test = (o, r) => {
+    if (o === ignore || o.dead) return;
+    const u = clamp(((o.x - x1) * dx + (o.y - y1) * dy) / l2, 0, 1), px = x1 + dx * u, py = y1 + dy * u, d = Math.hypot(o.x - px, o.y - py);
+    if (d < r) { const back = Math.sqrt(r * r - d * d) / Math.sqrt(l2), u2 = Math.max(0, u - back); if (u2 < bu) { bu = u2; best = { x: x1 + dx * u2, y: y1 + dy * u2, obj: o }; } }
+  };
+  for (const a of G.ast) test(a, a.r); for (const w of G.wells) if (w.type !== 1) test(w, w.r);
+  return best;
+}
+function fireBeam(sh, t, dmg, owner, evId) {
+  let x2 = t.x, y2 = t.y, obj = t;
+  const b = segBlock(sh.x, sh.y, x2, y2, t); if (b) { x2 = b.x; y2 = b.y; obj = b.obj; }
+  ev('l', x2, y2, evId);
+  if (obj.gr != null) return;
+  if (obj.lv) hurt(obj, dmg, owner, x2, y2); else if (obj.type != null) hurtNeut(obj, dmg, x2, y2, owner); else hurtAst(obj, dmg, x2, y2);
+}
 function updateShip(s, dt) {
   const st = stats(s), I = s.in, L = k => eff(s, k);
   const inNeb = G.nebs.some(n => Math.hypot(s.x - n.x, s.y - n.y) < n.r), inIon = G.ion && Math.hypot(s.x - G.ion.x, s.y - G.ion.y) < G.ion.r;
@@ -460,7 +489,7 @@ function updateShip(s, dt) {
   }
   for (const a of G.ast) {
     const d = Math.hypot(s.x - a.x, s.y - a.y), mn = s.rad + a.r;
-    if (d < mn && d > 0) { const nx = (s.x - a.x) / d, ny = (s.y - a.y) / d; s.x = a.x + nx * mn; s.y = a.y + ny * mn; const vn = s.vx * nx + s.vy * ny; if (vn < 0) { s.vx -= 1.6 * vn * nx; s.vy -= 1.6 * vn * ny; } }
+    if (d < mn && d > 0) { const nx = (s.x - a.x) / d, ny = (s.y - a.y) / d; s.x = a.x + nx * mn; s.y = a.y + ny * mn; const vn = s.vx * nx + s.vy * ny; if (vn < 0) { s.vx -= 1.6 * vn * nx; s.vy -= 1.6 * vn * ny; } if (a.deb && (s.debT || 0) <= G.t) { s.debT = G.t + 0.4; hurt(s, 7, -1, s.x, s.y); } }
   }
   if (s.portalT <= 0) {
     for (let k = 0; k < G.portals.length; k++) {
@@ -471,14 +500,13 @@ function updateShip(s, dt) {
   // target resolution + auto-fire lasers
   let t = tgtObj(I.tg);
   if (!t || !enemyOf(s, t) || dist(s, t) > 720) t = null;
-  if (!t) t = nearest(enemyShips(s), s, LASER_RANGE) || nearest(G.neut.filter(n => !n.dead), s, 560) || nearest(G.ast, s, 330);
+  if (!t) t = nearest(enemyShips(s), s, LASER_RANGE) || nearest(G.neut.filter(n => !n.dead && (n.type <= 4 || (n.type === 6 && teamOf(n.ow) !== teamOf(s.i)))), s, 560) || nearest(G.ast, s, 330);
   s.tgtNow = t;
   if (s.emp > 0) { s.railQ = null; return; }
   if (s.railQ) { s.railQ.t -= dt; if (s.railQ.t <= 0) { const q = s.railQ; s.railQ = null; spawnProj(7, s.i, s.x + Math.cos(q.a) * s.rad, s.y + Math.sin(q.a) * s.rad, q.a, 1500, 0.8, 70 + 25 * q.lv, { hit: [] }); ev('f', s.x, s.y, s.i); } }
   if (t && s.fireT <= 0 && dist(s, t) < LASER_RANGE + (t.rad || t.r || 0)) {
     const l = L(LAS), n = 1 + (l >= 2 ? 1 : 0) + (l >= 3 ? 1 : 0); s.fireT = 0.55 - 0.03 * l;
-    const lead = dist(s, t) / 720 * 0.8, ang = Math.atan2(t.y + (t.vy || 0) * lead - s.y, t.x + (t.vx || 0) * lead - s.x);
-    for (let j = 0; j < n; j++) { const off = (j - (n - 1) / 2) * 9; spawnProj(1, s.i, s.x - Math.sin(ang) * off, s.y + Math.cos(ang) * off, ang, 720, 0.9, 5 + 1.5 * l); }
+    fireBeam(s, t, n * (5 + 1.5 * l), s.i, s.i);
     ev('f', s.x, s.y, s.i);
   }
   // skills
@@ -528,7 +556,7 @@ function projHit(p) {
   if (p.k === 7) {   // railgun: pierces everything once, planets stop it
     const ot = teamOf(p.o);
     for (const sh of G.ships) { const id = 's' + sh.i; if (sh.alive && teamOf(sh.i) !== ot && !p.hit.includes(id) && Math.hypot(sh.x - p.x, sh.y - p.y) < sh.rad + pr) { p.hit.push(id); hurt(sh, p.dmg * (sh.emp > 0 ? 1.25 : 1), p.o, p.x, p.y); } }
-    for (const n of G.neut) { const id = 'n' + n.id; if (!n.dead && !p.hit.includes(id) && Math.hypot(n.x - p.x, n.y - p.y) < n.rad + pr) { p.hit.push(id); hurtNeut(n, p.dmg, p.x, p.y, p.o); } }
+    for (const n of G.neut) { const id = 'n' + n.id; if (!n.dead && n.type !== 5 && !(n.type === 6 && teamOf(n.ow) === ot) && !p.hit.includes(id) && Math.hypot(n.x - p.x, n.y - p.y) < n.rad + pr) { p.hit.push(id); hurtNeut(n, p.dmg, p.x, p.y, p.o); } }
     for (const a of G.ast) { const id = 'a' + a.id; if (!a.dead && !p.hit.includes(id) && Math.hypot(a.x - p.x, a.y - p.y) < a.r + pr) { p.hit.push(id); hurtAst(a, p.dmg, p.x, p.y); } }
     return false;
   }
@@ -542,11 +570,39 @@ function projHit(p) {
     if (!s.alive || teamOf(s.i) === ot) continue;
     if (Math.hypot(s.x - p.x, s.y - p.y) < s.rad + pr) { if (p.k === 4) explode(p.x, p.y, p.rad, p.dmg, p.o); else hurt(s, p.dmg, p.o, p.x, p.y); return true; }
   }
-  for (const n of G.neut) if (!n.dead && Math.hypot(n.x - p.x, n.y - p.y) < n.rad + pr) { if (p.k === 4) explode(p.x, p.y, p.rad, p.dmg, p.o); else hurtNeut(n, p.dmg, p.x, p.y, p.o); return true; }
+  for (const n of G.neut) if (!n.dead && n.type !== 5 && !(n.type === 6 && teamOf(n.ow) === ot) && Math.hypot(n.x - p.x, n.y - p.y) < n.rad + pr) { if (p.k === 4) explode(p.x, p.y, p.rad, p.dmg, p.o); else hurtNeut(n, p.dmg, p.x, p.y, p.o); return true; }
   for (const a of G.ast) if (!a.dead && Math.hypot(a.x - p.x, a.y - p.y) < a.r + pr) { if (p.k === 4) explode(p.x, p.y, p.rad, p.dmg, p.o); else hurtAst(a, p.dmg, p.x, p.y); return true; }
   return false;
 }
 function updateNeut(n, dt) {
+  if (n.type === 4) {   // pirate warship: patrols, hunts nearby ships, fires fan bursts
+    const tg = nearest(G.ships.filter(sh => sh.alive), n, 760);
+    if (tg) { n.gx = tg.x; n.gy = tg.y; } else if (Math.hypot(n.gx - n.x, n.gy - n.y) < 60 || Math.random() < 0.002) { const a = rnd(0, 6.28), r = Math.sqrt(Math.random()) * G.z * 0.8; n.gx = Math.cos(a) * r; n.gy = Math.sin(a) * r; }
+    if (Math.hypot(n.x, n.y) > G.z * 0.92) { n.gx = 0; n.gy = 0; }
+    const dx = n.gx - n.x, dy = n.gy - n.y, d = Math.hypot(dx, dy) || 1, want = tg ? (d > 340 ? 95 : d < 260 ? -60 : 0) : 70;
+    n.vx += (dx / d * want - n.vx) * Math.min(1, dt); n.vy += (dy / d * want - n.vy) * Math.min(1, dt); n.x += n.vx * dt; n.y += n.vy * dt;
+    n.ang = tg ? Math.atan2(tg.y - n.y, tg.x - n.x) : (Math.hypot(n.vx, n.vy) > 5 ? Math.atan2(n.vy, n.vx) : n.ang);
+    if (tg && (n.shT -= dt) <= 0) { n.shT = 1.5; const cnt = n.hp < n.hpMax * 0.5 ? 9 : 5; for (let k = 0; k < cnt; k++) spawnProj(5, -1, n.x, n.y, n.ang + (k - (cnt - 1) / 2) * 0.16, 400, 2.2, 9); }
+    return;
+  }
+  if (n.type === 5) {   // stranded ship: hold position near it for 3 s to rescue it
+    n.x += n.vx * dt; n.y += n.vy * dt; n.ang += dt * 0.4; if (Math.random() < 0.01) { n.vx = rnd(-12, 12); n.vy = rnd(-12, 12); }
+    const near = nearest(G.ships.filter(sh => sh.alive), n, 110 + 20);
+    if (near && G.neut.filter(m => m.type === 6 && m.ow === near.i && !m.dead).length < 2) {
+      n.res = Math.min(1, (n.res || 0) + dt / 3);
+      if (n.res >= 1) { n.slot = G.neut.filter(m => m.type === 6 && m.ow === near.i && !m.dead).length; n.type = 6; n.ow = near.i; n.hp = n.hpMax = 220; n.shT = 0; n.res = 0; ev('w', n.x, n.y); logMsg(G.players[near.i].name + ' rescued a ship — it now follows them!'); }
+    } else n.res = Math.max(0, (n.res || 0) - dt / 2);
+    return;
+  }
+  if (n.type === 6) {   // escort: orbits its owner and fires beams at nearby enemies
+    const o = G.ships[n.ow]; if (!o || !o.alive) { n.dead = true; return; }
+    const a = G.t * 0.6 + (n.slot || 0) * 3.14, tx = o.x + Math.cos(a) * 95, ty = o.y + Math.sin(a) * 95, dx = tx - n.x, dy = ty - n.y, d = Math.hypot(dx, dy) || 1, sp = Math.min(340, d * 3);
+    n.vx += (dx / d * sp - n.vx) * Math.min(1, 3 * dt); n.vy += (dy / d * sp - n.vy) * Math.min(1, 3 * dt); n.x += n.vx * dt; n.y += n.vy * dt;
+    const foe = nearest(targetsFor(n.ow), n, 520);
+    n.ang = foe ? Math.atan2(foe.y - n.y, foe.x - n.x) : (Math.hypot(n.vx, n.vy) > 5 ? Math.atan2(n.vy, n.vx) : n.ang);
+    if (foe && (n.shT -= dt) <= 0) { n.shT = 0.9; fireBeam(n, foe, 5, n.ow, 1000 + n.id); }
+    return;
+  }
   if (n.type === 3) {   // sentry: stationary turret, bursts at the nearest ship in range
     const tg = nearest(G.ships.filter(sh => sh.alive), n, 560);
     if (tg) { n.ang = Math.atan2(tg.y - n.y, tg.x - n.x); if ((n.shT -= dt) <= 0) { n.shT = 1.6; for (let k = -1; k <= 1; k++) spawnProj(5, -1, n.x, n.y, n.ang + k * 0.18, 420, 1.4, 7); } }
@@ -602,6 +658,10 @@ function stepOnce(dt) {
     }
   }
   for (const n of G.neut) updateNeut(n, dt);
+  for (const a of G.ast) if (a.vx !== undefined) {   // drifting debris bounces off the storm edge
+    a.x += a.vx * dt; a.y += a.vy * dt; const d = Math.hypot(a.x, a.y);
+    if (d > G.z * 0.88 && d > 0) { const nx = a.x / d, ny = a.y / d, dp = a.vx * nx + a.vy * ny; if (dp > 0) { a.vx -= 2 * dp * nx; a.vy -= 2 * dp * ny; } }
+  }
   for (let i = G.proj.length - 1; i >= 0; i--) {
     const p = G.proj[i]; stepProj(p, dt);
     if (projHit(p)) G.proj.splice(i, 1);
@@ -674,6 +734,8 @@ function stepOnce(dt) {
     if (G.neut.filter(n => n.type === 0).length < 18) spawnNeut(0, 450);
     if (G.neut.filter(n => n.type === 1).length < 3) spawnNeut(1, 450);
     if (G.ast.length < 36) { if (G.layout === 1 && Math.random() < 0.6) ringAst(); else spawnAst(400); }
+    if (G.neut.filter(n => n.type === 5).length < 2 && (G.sosT -= 1.5) <= 0) { spawnNeut(5, 500); G.sosT = 40 * G.lenF; logMsg('📡 Distress signal — a stranded ship needs rescue!'); }
+    if (G.t > 60 * G.lenF && !G.neut.some(n => n.type === 4) && (G.warT -= 1.5) <= 0) { spawnNeut(4, 600); G.warT = 90 * G.lenF; logMsg('⚠ A pirate warship is patrolling the arena!'); }
   }
   if (!G.boss && G.t > 110 * G.lenF) { G.boss = true; spawnNeut(2, 0); logMsg('⚠ A LEVIATHAN has appeared near the centre!'); }
   for (const e of G.events) {
@@ -728,8 +790,8 @@ function publish(now) {
       s.dp.reduce((m, v, j) => m | v << j, 0), s.emp > 0 ? 1 : 0, s.boost > 0 ? 1 : 0, s.thr, Math.floor(s.scrap), s.level, s.pending, s.offers,
       s.sk.map(p => (p < 0 ? 0 : r0(s.cd[p] * 10))), s.sk, s.kills, r0(s.respT * 10), s.slow > 0 ? 1 : 0]),
     sh: G.shares.map(v => r0(v * 1000)),
-    n: G.neut.map(n => [n.id, n.type, r0(n.x), r0(n.y), +n.ang.toFixed(2), r0(n.hp), n.hpMax, n.rad]),
-    a: G.ast.map(a => [a.id, r0(a.x), r0(a.y), r0(a.r), r0(a.hp), r0(a.hpMax)]),
+    n: G.neut.map(n => [n.id, n.type, r0(n.x), r0(n.y), +n.ang.toFixed(2), r0(n.hp), n.hpMax, n.rad, n.ow, r0((n.res || 0) * 100)]),
+    a: G.ast.map(a => [a.id, r0(a.x), r0(a.y), r0(a.r), r0(a.hp), r0(a.hpMax), a.rich ? 1 : a.deb ? 2 : 0]),
     p: G.proj.map(p => [p.k, p.o, r0(p.x), r0(p.y), r0(p.vx), r0(p.vy)]),
     k: G.pick.map(c => [c.t, r0(c.x), r0(c.y)]),
     m: G.mines.map(m => [r0(m.x), r0(m.y), teamOf(m.o), m.r, +m.life.toFixed(1)]),
@@ -769,12 +831,14 @@ function botControl(s, dt) {
     const boss = G.neut.find(n => n.type === 2);
     const beas = G.bea.filter(b => b.owner !== team).sort((a, b) => dist(a, s) - dist(b, s));
     const nb = nearest(G.neut.filter(n => n.type < 2), s, 900) || nearest(G.ast, s, 500);
+    const sos = nearest(G.neut.filter(n => n.type === 5), s, 900);
     if (Math.hypot(s.x, s.y) > G.z - 150) ai.mode = 'zone';
     else if (rep) { ai.mode = 'pick'; ai.goal = rep; }
     else if (foe && fd < 650 && s.hp > s.hpMax * 0.35 && (s.level >= (G.diff === 'hard' ? 2 : 3) || G.t > 120)) { ai.mode = 'fight'; ai.tgt = foe; }
     else if (boss && s.level >= 4 && dist(boss, s) < 1000 && s.hp > s.hpMax * 0.6) { ai.mode = 'fight'; ai.tgt = boss; }
     else if (orb) { ai.mode = 'pick'; ai.goal = orb; }
     else if ((G.cond === 'capture' || G.t > 40) && beas.length && (s.i + ai.seed) % (G.cond === 'capture' ? 4 : 3) !== 0) { ai.mode = 'beacon'; ai.goal = beas[Math.min(ai.seed, beas.length - 1)]; }
+    else if (sos) { ai.mode = 'pick'; ai.goal = sos; }
     else if (nb) { ai.mode = 'farm'; ai.tgt = nb; }
     else if (!ai.goal || ai.goal.life != null || dist(ai.goal, s) < 80) { const a = rnd(0, 6.28), r = Math.sqrt(Math.random()) * G.z * 0.7; ai.goal = { x: Math.cos(a) * r, y: Math.sin(a) * r }; }
     I.tg = ai.tgt ? idStr(ai.tgt) : '';
@@ -812,8 +876,8 @@ function decode(w, at) {
       lv: a[11].split('').map(Number), dp: [...Array(NP).keys()].map(j => (a[12] >> j) & 1), emp: a[13], boost: a[14], thr: a[15], scrap: a[16], level: a[17],
       pending: a[18], offers: a[19], cd: a[20].map(v => v / 10), sk: a[21], kills: a[22], rs: (a[23] || 0) / 10, slow: a[24] || 0 })),
     shares: w.sh.map(v => v / 1000),
-    neut: w.n.map(a => ({ id: a[0], type: a[1], x: a[2], y: a[3], ang: a[4], hp: a[5], hpMax: a[6], rad: a[7] })),
-    ast: w.a.map(a => ({ id: a[0], x: a[1], y: a[2], r: a[3], hp: a[4], hpMax: a[5] })),
+    neut: w.n.map(a => ({ id: a[0], type: a[1], x: a[2], y: a[3], ang: a[4], hp: a[5], hpMax: a[6], rad: a[7], ow: a[8] == null ? -1 : a[8], res: (a[9] || 0) / 100 })),
+    ast: w.a.map(a => ({ id: a[0], x: a[1], y: a[2], r: a[3], hp: a[4], hpMax: a[5], k: a[6] || 0 })),
     proj: w.p.map(a => ({ k: a[0], o: a[1], x: a[2], y: a[3], vx: a[4], vy: a[5] })),
     pick: w.k.map(a => ({ t: a[0], x: a[1], y: a[2] })), mines: w.m.map(a => ({ x: a[0], y: a[1], fac: a[2], r: a[3], life: a[4] })),
     wells: w.wl.map(a => ({ type: a[0], x: a[1], y: a[2], r: a[3], gr: a[4], g: a[5], life: a[6] || 0 })), portals: w.pt.map(a => ({ x: a[0], y: a[1] })),
@@ -899,7 +963,7 @@ function tapTarget(sx, sy) {
   let best = null, bd = 1e9;
   const test = (o, id, r) => { const d = Math.hypot(o.x - w.x, o.y - w.y) - r; if (d < slop && d < bd) { bd = d; best = id; } };
   V.ships.forEach(s => { if (s.alive && PL[s.i].fac !== mt) test(s, 's' + s.i, radOf(s.lv)); });
-  V.neut.forEach(n => test(n, 'n' + n.id, n.rad)); V.ast.forEach(a => test(a, 'a' + a.id, a.r));
+  V.neut.forEach(n => { if (n.type === 5 || (n.type === 6 && PL[n.ow] && PL[n.ow].fac === mt)) return; test(n, 'n' + n.id, n.rad); }); V.ast.forEach(a => test(a, 'a' + a.id, a.r));
   myTg = best || '';
 }
 cv.addEventListener('contextmenu', e => e.preventDefault());
@@ -980,6 +1044,7 @@ function processEvents2(list) {
       else if (t === 'k') Art2.fx.spawn('shockwave', x, y, { r, col: '#9ff' });
       else if (t === 'd') { Art2.fx.spawn('death', x, y, { col: PL[r] ? facC(r) : '#fff' }); const mv = VIEWNOW && VIEWNOW.ships[myi]; if (mv && mv.alive) { const d = Math.hypot(mv.x - x, mv.y - y); if (d < 700) SHAKE = Math.max(SHAKE, 11 * (1 - d / 700)); } }
       else if (t === 'w') Art2.fx.spawn('shockwave', x, y, { r: 80, col: '#8ff' });
+      else if (t === 'l') { BEAMS.push({ s: r, x, y, until: performance.now() + 220 }); Art2.fx.spawn('spark', x, y, {}); }
       else if (t === 'g') TELE.push({ x, y, a: r / 100, until: performance.now() + 450 });
     }
   } catch (e) { if (!window.__artErr) { window.__artErr = e.message; console.error('Art2 events', e); } }
@@ -1060,6 +1125,17 @@ function drawStreamFlow(st, tt) {   // faint bubbles drifting along a curved cur
   }
   ctx.restore();
 }
+const Z13 = Array(13).fill(0);
+function drawShipNeut(n) {   // stranded ship (type 5) and rescued escort (type 6)
+  const esc = n.type === 6, col = esc && PL[n.ow] ? facC(n.ow) : '#9aa6b8';
+  const a = { id: 200 + n.id, x: n.x, y: n.y, ang: n.ang, vx: 0, vy: 0, lv: Z13, col, seed: n.id, thr: esc ? 0.6 : 0, boost: 0, fire: 0, hit: 0, hpf: esc ? n.hp / n.hpMax : 0.35, shf: 0, emp: esc ? 0 : 1, alive: true, zoom: FZ };
+  let ok = false; if (ART2) ok = A2(() => Art2.ship.draw(ctx, a, TT));
+  if (!ok) { ctx.save(); ctx.translate(n.x, n.y); ctx.rotate(n.ang); ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(18, 0); ctx.lineTo(-12, 10); ctx.lineTo(-12, -10); ctx.fill(); ctx.restore(); }
+  if (esc) { ctx.strokeStyle = col; ctx.globalAlpha = 0.5; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(n.x, n.y, 24, 0, 7); ctx.stroke(); ctx.globalAlpha = 1; if (n.hp < n.hpMax) { ctx.fillStyle = '#0009'; ctx.fillRect(n.x - 15, n.y - 30, 30, 3); ctx.fillStyle = '#5ee07a'; ctx.fillRect(n.x - 15, n.y - 30, 30 * n.hp / n.hpMax, 3); } return; }
+  ctx.strokeStyle = '#7fe3ff'; ctx.lineWidth = 2; ctx.setLineDash([8, 8]); ctx.lineDashOffset = -TT * 18; ctx.beginPath(); ctx.arc(n.x, n.y, 110, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+  if (n.res > 0) { ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(n.x, n.y, 110, -Math.PI / 2, -Math.PI / 2 + n.res * 6.283); ctx.stroke(); ctx.lineCap = 'butt'; }
+  ctx.fillStyle = '#7fe3ff'; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(TT * 5); ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText('SOS — stay close to rescue', n.x, n.y - 32); ctx.globalAlpha = 1;
+}
 function drawSentry(n) {
   ctx.save(); ctx.translate(n.x, n.y);
   const g = ctx.createRadialGradient(-6, -8, 2, 0, 0, 24); g.addColorStop(0, '#9aa3b8'); g.addColorStop(1, '#232838'); ctx.fillStyle = g;
@@ -1076,6 +1152,14 @@ function drawRelic(c) {
 }
 function drawNeut(n) {
   if (n.type === 3) { drawSentry(n); return; }
+  if (n.type === 5 || n.type === 6) { drawShipNeut(n); return; }
+  if (n.type === 4) {
+    const ok = W2.leviathan && A2(() => W2.leviathan(ctx, n, TT));
+    if (!ok) { ctx.fillStyle = '#ff3d6e'; ctx.beginPath(); ctx.arc(n.x, n.y, n.rad, 0, 7); ctx.fill(); }
+    ctx.fillStyle = '#ffb0c0'; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center'; ctx.fillText('WARSHIP', n.x, n.y - n.rad - 16);
+    if (n.hp < n.hpMax) { ctx.fillStyle = '#0009'; ctx.fillRect(n.x - 24, n.y - n.rad - 10, 48, 4); ctx.fillStyle = '#ff7a7a'; ctx.fillRect(n.x - 24, n.y - n.rad - 10, 48 * n.hp / n.hpMax, 4); }
+    return;
+  }
   const fn = n.type === 0 ? W2.scout : n.type === 1 ? W2.hauler : W2.leviathan;
   if (fn && A2(() => fn(ctx, n, TT))) {
     if (n.hp < n.hpMax) { const w = n.rad; ctx.fillStyle = '#0009'; ctx.fillRect(n.x - w / 2, n.y - n.rad - 12, w, 4); ctx.fillStyle = '#ff7a7a'; ctx.fillRect(n.x - w / 2, n.y - n.rad - 12, w * n.hp / n.hpMax, 4); }
@@ -1172,7 +1256,7 @@ function frame(now) {
     if (!(W2.beacon && A2(() => W2.beacon(ctx, pc, tt, { owner: '#5ee07a', cap: null })))) { ctx.strokeStyle = '#5ee07a'; ctx.lineWidth = 3; ctx.setLineDash([10, 8]); ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
     ctx.fillStyle = '#5ee07a'; ctx.globalAlpha = 0.55 + 0.3 * Math.sin(tt * 3); ctx.fillRect(p.x - 3, p.y - 14, 6, 28); ctx.fillRect(p.x - 14, p.y - 3, 28, 6); ctx.globalAlpha = 1;   // repair cross
   }
-  for (const a of V.ast) { if (W2.asteroid && A2(() => W2.asteroid(ctx, a, tt))) continue; ctx.beginPath(); for (let i = 0; i < 9; i++) { const rr = a.r * (0.82 + 0.2 * Math.sin(a.id * 7.1 + i * 2.3)); ctx.lineTo(a.x + Math.cos(i * 0.698) * rr, a.y + Math.sin(i * 0.698) * rr); } ctx.closePath(); ctx.fillStyle = '#1d2233'; ctx.fill(); ctx.strokeStyle = '#5b6584'; ctx.lineWidth = 2; ctx.stroke(); }
+  for (const a of V.ast) { if (a.k === 1) { ctx.fillStyle = 'rgba(255,205,80,0.13)'; ctx.beginPath(); ctx.arc(a.x, a.y, a.r * 1.5 + 4 * Math.sin(tt * 3 + a.id), 0, 7); ctx.fill(); } if (W2.asteroid && A2(() => W2.asteroid(ctx, a, tt))) continue; ctx.beginPath(); for (let i = 0; i < 9; i++) { const rr = a.r * (0.82 + 0.2 * Math.sin(a.id * 7.1 + i * 2.3)); ctx.lineTo(a.x + Math.cos(i * 0.698) * rr, a.y + Math.sin(i * 0.698) * rr); } ctx.closePath(); ctx.fillStyle = '#1d2233'; ctx.fill(); ctx.strokeStyle = '#5b6584'; ctx.lineWidth = 2; ctx.stroke(); }
   for (const c of V.pick) {
     if (c.t === 2) { drawRelic(c); continue; }
     if (W2.scrap && A2(() => W2.scrap(ctx, c, tt))) continue;
@@ -1202,6 +1286,18 @@ function frame(now) {
     if (!ART2 && s.thr && Math.random() < 0.7) { const b = radOf(s.lv) * 0.7; fx(s.x - Math.cos(s.ang) * b, s.y - Math.sin(s.ang) * b, -s.vx * 0.15 + rnd(-20, 20), -s.vy * 0.15 + rnd(-20, 20), 0.35, s.boost ? '#9cf' : '#ff9a3d', 3); }
     drawShip(s, s === M);
   }
+  { const nb = performance.now();   // laser beams: full line from the shooter to what it hits
+    ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+    for (let i = BEAMS.length - 1; i >= 0; i--) {
+      const b = BEAMS[i]; if (b.until < nb) { BEAMS.splice(i, 1); continue; }
+      const sh = b.s < 1000 ? V.ships[b.s] : V.neut.find(n => n.id === b.s - 1000); if (!sh || sh.alive === false) continue;
+      const f = (b.until - nb) / 220, col = b.s < 1000 ? facC(b.s) : (sh.ow >= 0 && PL[sh.ow] ? facC(sh.ow) : '#ff9a3d'), th = b.s < 1000 ? 1 + (sh.lv ? sh.lv[LAS] : 0) * 0.6 : 0.8;
+      const ang = Math.atan2(b.y - sh.y, b.x - sh.x), rr = sh.lv ? radOf(sh.lv) : (sh.rad || 14);
+      ctx.beginPath(); ctx.moveTo(sh.x + Math.cos(ang) * rr * 1.1, sh.y + Math.sin(ang) * rr * 1.1); ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = col; ctx.globalAlpha = 0.4 * f; ctx.lineWidth = 9 * th * f + 2; ctx.stroke();
+      ctx.strokeStyle = '#fff'; ctx.globalAlpha = 0.9 * f; ctx.lineWidth = 2.2 * th * f + 0.8; ctx.stroke();
+    }
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.lineCap = 'butt'; }
   { const np = performance.now();   // railgun charge telegraphs
     for (let i = TELE.length - 1; i >= 0; i--) { const q = TELE[i]; if (q.until < np) { TELE.splice(i, 1); continue; } const f = (q.until - np) / 450; ctx.strokeStyle = 'rgba(255,' + (120 + 100 * (1 - f) | 0) + ',120,' + (0.25 + 0.5 * (1 - f)) + ')'; ctx.lineWidth = 2 + 4 * (1 - f); ctx.beginPath(); ctx.moveTo(q.x, q.y); ctx.lineTo(q.x + Math.cos(q.a) * 1300, q.y + Math.sin(q.a) * 1300); ctx.stroke(); } }
   if (AIMING && AIMING.moved && M && M.alive) drawAimPreview(M, AIMING);
@@ -1227,7 +1323,7 @@ function drawHUD2(V, me, M, now) {
     const dx = sx - CW / 2, dy = sy - CH / 2, k = Math.min((CW / 2 - m) / Math.abs(dx || 1), (CH / 2 - m) / Math.abs(dy || 1));
     H2.arrow(ctx, CW / 2 + dx * k, CH / 2 + dy * k, Math.atan2(dy, dx), col);
   };
-  if (M && M.alive && cm && H2.arrow) { V.bea.forEach(b => arrow(b.x, b.y, b.owner >= 0 ? FC(b.owner) : '#aabbcc')); V.neut.forEach(n => { if (n.type === 2) arrow(n.x, n.y, '#ff3d6e'); }); V.drops.forEach(d => arrow(d.x, d.y, '#ffe066')); }
+  if (M && M.alive && cm && H2.arrow) { V.bea.forEach(b => arrow(b.x, b.y, b.owner >= 0 ? FC(b.owner) : '#aabbcc')); V.neut.forEach(n => { if (n.type === 2 || n.type === 4) arrow(n.x, n.y, '#ff3d6e'); else if (n.type === 5) arrow(n.x, n.y, '#7fe3ff'); }); V.drops.forEach(d => arrow(d.x, d.y, '#ffe066')); }
   const NFc = MODE === 'teams' ? 2 : PL.length, alive = Array(NFc).fill(0);
   V.ships.forEach(sh => { if (sh.alive) alive[PL[sh.i].fac]++; });
   H2.top(ctx, { w: CW, h: CH, sa: SA, mode: MODE, cond: COND, time: V.t, alive, aliveTotal: V.ships.filter(sh => sh.alive).length, shares: V.shares || [], fcol: alive.map((_, f) => FC(f)),
