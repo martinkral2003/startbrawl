@@ -13,10 +13,10 @@ const [ARM, LAS, SHD, ENG, REP, MIS, TOR, DRN, MIN, DSH, RAIL, GRV, PUL] = [0, 1
 const PARTS = [ // name, desc, tag, active?
   ['Hull Armor', 'more hull, less damage taken', 'AR', 0], ['Lasers', 'more barrels & damage (auto-fire)', 'LS', 0],
   ['Shield', 'regenerating energy shield', 'SH', 0], ['Engines', 'speed & turning', 'EN', 0],
-  ['Nano-Repair', 'heals hull over time', 'NR', 0], ['Missiles', 'aimed salvo, homes in a cone [skill]', 'MS', 1],
-  ['Torpedo', 'aimed blast, stuns [skill]', 'TP', 1], ['Drones', 'aimed kamikaze swarm [skill]', 'DR', 1],
-  ['Mine Layer', 'aimed field of real mines: step on one and it blows + slows [skill]', 'MN', 1], ['Afterburner', 'aimed dash: untouchable for 0.4 s, rams foes (damage + stun) [skill]', 'AB', 1],
-  ['Railgun', 'aimed charged bolt, hits stunned harder [skill]', 'RG', 1], ['Gravity Bomb', 'aimed well: strong pull + slow, then a big stun blast [skill]', 'GB', 1], ['Shockwave', 'stun + slow + push, clears shots [skill]', 'SW', 1],
+  ['Nano-Repair', 'heals hull over time', 'NR', 0], ['Missiles', 'homing salvo at your target [skill]', 'MS', 1],
+  ['Torpedo', 'blast at your target, stuns [skill]', 'TP', 1], ['Drones', 'kamikaze swarm [skill]', 'DR', 1],
+  ['Mine Layer', 'field of mines behind you: blow + slow [skill]', 'MN', 1], ['Afterburner', 'dash: untouchable 0.4 s, rams foes [skill]', 'AB', 1],
+  ['Railgun', 'charged bolt at your target, hits stunned harder [skill]', 'RG', 1], ['Gravity Bomb', 'well on your target: pull + slow, then stun [skill]', 'GB', 1], ['Shockwave', 'stun + slow + push, clears shots [skill]', 'SW', 1],
 ];
 const PCOL = ['#c8d0e0', '#ff6b6b', '#6cf', '#9ef', '#69db7c', '#ffa94d', '#ffd43b', '#b197fc', '#ff8787', '#74c0fc', '#9ff', '#ffb870', '#e599f7'];
 const DIFF = {
@@ -146,7 +146,7 @@ function showMenu(err) {
     <input id="code" maxlength="4" value="${esc(hashCode)}" placeholder="ABCD" style="text-transform:uppercase;text-align:center;letter-spacing:4px">
     <button class="sec" onclick="joinRoom()">Join room</button>
     <button class="sec" onclick="goFullscreen()">⛶ Fullscreen / landscape</button>
-    <p class="dim">Teams or free-for-all, capture points or last ship standing. Joystick (or WASD) to fly, lasers auto-fire, tap an enemy to target it, 3 skill buttons (Space / Q / E) — drag a skill button to AIM it (mouse: skills aim at the cursor).</p>`);
+    <p class="dim">Teams or free-for-all, capture points or last ship standing. Joystick (or WASD) to fly, lasers auto-fire, tap an enemy to target it, 3 skill buttons (Space / Q / E).</p>`);
 }
 function showLobby() {
   if (S.mode !== 'lobby') return;
@@ -992,7 +992,7 @@ cv.addEventListener('pointerdown', e => {
   const h = uiHit(e.clientX, e.clientY);
   if (h) {
     if (h.t === 'fs') toggleFs();
-    else if (h.t === 'sk') { const b = layout().btn[h.i]; AIMING = { j: h.i, id: e.pointerId, bx: b.x, by: b.y, x: e.clientX, y: e.clientY, moved: false }; try { cv.setPointerCapture(e.pointerId); } catch (er) {} }
+    else if (h.t === 'sk') SKP[h.i] = performance.now() + 160;   // skills auto-aim: tap to fire
     else doPick(h.i);
     return;
   }
@@ -1023,8 +1023,6 @@ addEventListener('keydown', e => {
   if (S.mode !== 'game') return;
   K[e.code] = 1;
   if (e.code === 'Space') e.preventDefault();
-  const sk = { Space: 0, KeyQ: 1, KeyE: 2 }[e.code];
-  if (sk != null && CUR && !e.repeat) AIMV[sk] = { a: Math.atan2(CUR.y - CH / 2, CUR.x - CW / 2), pw: clamp((Math.hypot(CUR.x - CW / 2, CUR.y - CH / 2) - 40) / 320, 0, 1), until: performance.now() + 300 };
   const k = { Digit1: 0, Digit2: 1, Digit3: 2 }[e.code]; if (k != null) doPick(k);
 });
 addEventListener('keyup', e => { K[e.code] = 0; });
