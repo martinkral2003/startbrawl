@@ -25,7 +25,7 @@ const DIFF = {
   hard:   { err: 0.05, react: 0.12, turn: 12, lead: 1, spd: 1,    aggr: 0.9 },
 };
 const PRIO = { easy: [], normal: [SHD, LAS, ARM, MIS, ENG, TOR, REP, RAIL, GRV, DRN, MIN, PUL, DSH], hard: [LAS, SHD, RAIL, MIS, ARM, TOR, ENG, REP, GRV, DRN, MIN, PUL, DSH] };
-const LASER_RANGE = 620;
+const LASER_RANGE = 430;
 
 const rid = () => Math.random().toString(36).slice(2, 10);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -442,6 +442,7 @@ function segBlock(x1, y1, x2, y2, ignore) {   // first rock / planet / star on t
 }
 function fireBeam(sh, t, dmg, owner, evId) {
   let x2 = t.x, y2 = t.y, obj = t;
+  { const rr = t.lv ? t.rad * (t.sh > 0 ? 1.6 : 1) : (t.rad || t.r || 0), dd = Math.hypot(t.x - sh.x, t.y - sh.y) || 1; x2 = t.x - (t.x - sh.x) / dd * rr; y2 = t.y - (t.y - sh.y) / dd * rr; }   // stop at the hull edge, or at the shield bubble
   const b = segBlock(sh.x, sh.y, x2, y2, t); if (b) { x2 = b.x; y2 = b.y; obj = b.obj; }
   ev('l', x2, y2, evId);
   if (obj.gr != null) return;
@@ -1292,11 +1293,11 @@ function frame(now) {
     for (let i = BEAMS.length - 1; i >= 0; i--) {
       const b = BEAMS[i]; if (b.until < nb) { BEAMS.splice(i, 1); continue; }
       const sh = b.s < 1000 ? V.ships[b.s] : V.neut.find(n => n.id === b.s - 1000); if (!sh || sh.alive === false) continue;
-      b.x += (b.tx - b.x) * 0.5; b.y += (b.ty - b.y) * 0.5; const f = Math.min(1, (b.until - nb) / 110) * (0.88 + 0.12 * Math.sin(nb / 45 + b.s)), col = b.s < 1000 ? facC(b.s) : (sh.ow >= 0 && PL[sh.ow] ? facC(sh.ow) : '#ff9a3d'), th = b.s < 1000 ? 1 + (sh.lv ? sh.lv[LAS] : 0) * 0.6 : 0.8;
+      b.x += (b.tx - b.x) * 0.5; b.y += (b.ty - b.y) * 0.5; const f = Math.min(1, (b.until - nb) / 110) * (0.97 + 0.03 * Math.sin(nb / 60 + b.s)), col = '#ff8f2e', th = b.s < 1000 ? 1 + (sh.lv ? sh.lv[LAS] : 0) * 0.6 : 0.8;
       const ang = Math.atan2(b.y - sh.y, b.x - sh.x), rr = sh.lv ? radOf(sh.lv) : (sh.rad || 14);
       ctx.beginPath(); ctx.moveTo(sh.x + Math.cos(ang) * rr * 1.1, sh.y + Math.sin(ang) * rr * 1.1); ctx.lineTo(b.x, b.y);
       ctx.strokeStyle = col; ctx.globalAlpha = 0.4 * f; ctx.lineWidth = 9 * th * f + 2; ctx.stroke();
-      ctx.strokeStyle = '#fff'; ctx.globalAlpha = 0.9 * f; ctx.lineWidth = 2.2 * th * f + 0.8; ctx.stroke();
+      ctx.strokeStyle = '#ffe3b8'; ctx.globalAlpha = 0.95 * f; ctx.lineWidth = 2.2 * th * f + 0.8; ctx.stroke();
     }
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.lineCap = 'butt'; }
   { const np = performance.now();   // railgun charge telegraphs
