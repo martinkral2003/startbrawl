@@ -15,8 +15,8 @@ const PARTS = [ // name, desc, tag, active?
   ['Shield', 'regenerating energy shield', 'SH', 0], ['Engines', 'speed & turning', 'EN', 0],
   ['Nano-Repair', 'heals hull over time', 'NR', 0], ['Missiles', 'aimed salvo, homes in a cone [skill]', 'MS', 1],
   ['Torpedo', 'aimed blast, stuns [skill]', 'TP', 1], ['Drones', 'aimed kamikaze swarm [skill]', 'DR', 1],
-  ['Mine Layer', 'aimed 10 s slowing mine field [skill]', 'MN', 1], ['Afterburner', 'aimed dash [skill]', 'AB', 1],
-  ['Railgun', 'aimed charged bolt, hits stunned harder [skill]', 'RG', 1], ['Gravity Bomb', 'aimed well pulls + slows, collapses into a stun [skill]', 'GB', 1], ['Shockwave', 'stun + slow + push, clears shots [skill]', 'SW', 1],
+  ['Mine Layer', 'aimed field of real mines: step on one and it blows + slows [skill]', 'MN', 1], ['Afterburner', 'aimed dash: untouchable for 0.4 s, rams foes (damage + stun) [skill]', 'AB', 1],
+  ['Railgun', 'aimed charged bolt, hits stunned harder [skill]', 'RG', 1], ['Gravity Bomb', 'aimed well: strong pull + slow, then a big stun blast [skill]', 'GB', 1], ['Shockwave', 'stun + slow + push, clears shots [skill]', 'SW', 1],
 ];
 const PCOL = ['#c8d0e0', '#ff6b6b', '#6cf', '#9ef', '#69db7c', '#ffa94d', '#ffd43b', '#b197fc', '#ff8787', '#74c0fc', '#9ff', '#ffb870', '#e599f7'];
 const DIFF = {
@@ -39,7 +39,7 @@ const radOf = lv => 15 + Math.min(14, lv.reduce((a, b) => a + b, 0) * 0.5);
 const thresh = n => (40 * n + 8 * n * n) * (LEN === 'quick' ? 0.7 : 1);
 const zoneR = t => { const f = LEN === 'quick' ? 0.55 : 1, a = ZONE_T0 * f, b = ZONE_T1 * f; return t < a ? R0 : Math.max(ZONE_MIN, R0 - (R0 - ZONE_MIN) * (t - a) / (b - a)); };
 const stats = s => { const e = eff(s, ENG); return { acc: 480 + 80 * e, vmax: 230 + 35 * e, turn: 4 + 1.5 * e }; };
-const cdMax = (lv, p) => [0, 0, 0, 0, 0, 5 - 0.4 * lv[MIS], 7 - 0.8 * lv[TOR], 13 - 1.6 * lv[DRN], 9.5 - 0.8 * lv[MIN], 4, 6.5 - 0.8 * lv[RAIL], 9.5 - 1.2 * lv[GRV], 8 - 0.8 * lv[PUL]][p];
+const cdMax = (lv, p) => [0, 0, 0, 0, 0, 5 - 0.4 * lv[MIS], 7 - 0.8 * lv[TOR], 13 - 1.6 * lv[DRN], 9.5 - 0.8 * lv[MIN], 4.5 - 0.5 * lv[DSH], 6.5 - 0.8 * lv[RAIL], 9.5 - 1.2 * lv[GRV], 8 - 0.8 * lv[PUL]][p];
 const isLive = t => t && !t.dead && t.alive !== false && (t.hp == null || t.hp > 0);
 const isShip = t => t && t.lv != null;
 let GMUL = 1;
@@ -355,7 +355,7 @@ function addScrap(s, n) {
   if (s.pending > 0 && !s.offers.length) makeOffers(s);
 }
 function hurt(s, dmg, by, x, y) {
-  if (!s.alive || G.over || s.inv > 0) return;
+  if (!s.alive || G.over || s.inv > 0 || s.phase > 0) return;
   s.lastHit = G.t;
   dmg *= (s.emp > 0 ? 1.35 : 1) * (s.slow > 0 ? 1.15 : 1);   // combo window: stunned +35%, slowed +15%
   if (s.sh > 0) { const a = Math.min(s.sh, dmg); s.sh -= a; dmg -= a; ev('s', x, y, Math.round(a)); if (dmg <= 0) return; }
@@ -371,10 +371,11 @@ function killShip(s, by) {
   if (k && k.alive && teamOf(k.i) !== teamOf(s.i)) { k.kills++; addScrap(k, 25 + 8 * s.level + 12 * Math.max(0, s.level - k.level)); k.hp = Math.min(k.hpMax, k.hp + 60); logMsg(`${G.players[k.i].name} destroyed ${G.players[s.i].name}`); }
   else logMsg(`${G.players[s.i].name} was lost to the void`);
 }
-function collapseWell(w) {
-  ev('k', w.x, w.y, 170); const ot = teamOf(w.o);
-  for (const sh of G.ships) if (sh.alive && teamOf(sh.i) !== ot && Math.hypot(sh.x - w.x, sh.y - w.y) < 170 + sh.rad) { sh.emp = Math.max(sh.emp, 1.2); hurt(sh, 25, w.o, sh.x, sh.y); }
-  for (const n of G.neut) if (!n.dead && Math.hypot(n.x - w.x, n.y - w.y) < 170 + n.rad) hurtNeut(n, 25, n.x, n.y, w.o);
+function collapseWell(w) {   // end of a gravity bomb: stun + damage everything still inside
+  const lvl = w.lvl || 1, cr = 170 + 15 * lvl, ot = teamOf(w.o);
+  ev('k', w.x, w.y, cr);
+  for (const sh of G.ships) if (sh.alive && teamOf(sh.i) !== ot && Math.hypot(sh.x - w.x, sh.y - w.y) < cr + sh.rad) { sh.emp = Math.max(sh.emp, 1.2 + 0.2 * lvl); hurt(sh, 30 + 10 * lvl, w.o, sh.x, sh.y); }
+  for (const n of G.neut) if (!n.dead && Math.hypot(n.x - w.x, n.y - w.y) < cr + n.rad) hurtNeut(n, 30 + 10 * lvl, n.x, n.y, w.o);
 }
 function respawn(s) {
   s.alive = true; s.hp = s.hpMax; s.sh = s.shMax; s.x = s.sx; s.y = s.sy; s.vx = s.vy = 0; s.ang = s.sa; s.emp = 0; s.inv = 3; s.lastHit = G.t;
@@ -409,13 +410,13 @@ function hurtAst(a, dmg, x, y) {
 function spawnProj(k, o, x, y, ang, speed, life, dmg, extra) {
   G.proj.push(Object.assign({ k, o, x, y, vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed, life, dmg, tg: null }, extra));
 }
-function explode(x, y, r, dmg, owner) {
+function explode(x, y, r, dmg, owner, slowOnly) {
   ev('x', x, y, r);
   const ot = owner >= 0 ? teamOf(owner) : -9;
   for (const s of G.ships) {
     if (!s.alive || teamOf(s.i) === ot) continue;
     const d = Math.hypot(s.x - x, s.y - y);
-    if (d < r + s.rad) { s.emp = 1.6; hurt(s, dmg * (1 - 0.4 * Math.min(1, d / r)), owner, s.x, s.y); }
+    if (d < r + s.rad) { if (slowOnly) s.slow = Math.max(s.slow || 0, 2.2); else s.emp = 1.6; hurt(s, dmg * (1 - 0.4 * Math.min(1, d / r)), owner, s.x, s.y); }
   }
   for (const n of G.neut) if (Math.hypot(n.x - x, n.y - y) < r + n.rad) hurtNeut(n, dmg, n.x, n.y, owner);
   for (const a of G.ast) if (Math.hypot(a.x - x, a.y - y) < r + a.r) hurtAst(a, dmg, a.x, a.y);
@@ -455,7 +456,12 @@ function fireBeam(sh, t, dmg, owner, evId) {
 function updateShip(s, dt) {
   const st = stats(s), I = s.in, L = k => eff(s, k);
   const inNeb = G.nebs.some(n => Math.hypot(s.x - n.x, s.y - n.y) < n.r), inIon = G.ion && Math.hypot(s.x - G.ion.x, s.y - G.ion.y) < G.ion.r;
-  s.emp = Math.max(0, s.emp - dt); s.slow = Math.max(0, (s.slow || 0) - dt); s.boost = Math.max(0, s.boost - dt); s.portalT -= dt; s.fireT -= dt;
+  s.emp = Math.max(0, s.emp - dt); s.slow = Math.max(0, (s.slow || 0) - dt); s.boost = Math.max(0, s.boost - dt);
+  s.phase = Math.max(0, (s.phase || 0) - dt);
+  if (s.phase > 0 && s.ram) for (const o of G.ships) {
+    if (!o.alive || teamOf(o.i) === teamOf(s.i) || s.ram.has(o.i)) continue;
+    if (Math.hypot(o.x - s.x, o.y - s.y) < s.rad + o.rad + 8) { s.ram.add(o.i); hurt(o, 25 + 10 * (s.dashLv || 1), s.i, o.x, o.y); o.emp = Math.max(o.emp, 0.5); const d = dist(o, s) || 1; o.vx += (o.x - s.x) / d * 350; o.vy += (o.y - s.y) / d * 350; ev('x', (o.x + s.x) / 2, (o.y + s.y) / 2, 40); }
+  } s.portalT -= dt; s.fireT -= dt;
   for (let p = 0; p < NP; p++) s.cd[p] = Math.max(0, s.cd[p] - dt);
   s.shMax = 45 * L(SHD);
   if (s.sh > s.shMax) s.sh = s.shMax;
@@ -510,9 +516,14 @@ function updateShip(s, dt) {
   if (s.emp > 0) { s.railQ = null; return; }
   if (s.railQ) { s.railQ.t -= dt; if (s.railQ.t <= 0) { const q = s.railQ; s.railQ = null; spawnProj(7, s.i, s.x + Math.cos(q.a) * s.rad, s.y + Math.sin(q.a) * s.rad, q.a, 1500, 0.8, 70 + 25 * q.lv, { hit: [] }); ev('f', s.x, s.y, s.i); } }
   s.bAcc = t ? Math.min(0.2, (s.bAcc || 0) + dt) : 0;
+  if (!t) { s.fT = 0; s.fTg = null; }
   if (t && s.fireT <= 0 && dist(s, t) < LASER_RANGE + (t.rad || t.r || 0)) {
     const l = L(LAS), n = 1 + (l >= 2 ? 1 : 0) + (l >= 3 ? 1 : 0); s.fireT = 0.1;
-    fireBeam(s, t, n * (5 + 1.5 * l) / (0.55 - 0.03 * l) * Math.max(0.05, s.bAcc), s.i, s.i); s.bAcc = 0;
+    if (s.fTg !== t) { s.fTg = t; s.fT = 0; }   // focus: staying on one target ramps the beam up to +80% over 3 s
+    s.fT = Math.min(3, (s.fT || 0) + s.bAcc);
+    const dmgTick = n * (5 + 1.5 * l) / (0.55 - 0.03 * l) * Math.max(0.05, s.bAcc) * (1 + 0.8 * s.fT / 3);
+    fireBeam(s, t, dmgTick, s.i, s.i); s.bAcc = 0;
+    if (l >= 2) { const t2 = nearest(enemyShips(s).filter(o => o !== t), t, 170 + 30 * l); if (t2) hurt(t2, dmgTick * 0.5, s.i, t2.x, t2.y); }   // arc to a second enemy near the target
     if ((s.fN = (s.fN || 0) + 1) % 3 === 0) ev('f', s.x, s.y, s.i);
   }
   // skills
@@ -529,12 +540,13 @@ function updateShip(s, dt) {
     else if (p === MIN) {
       const own = G.mines.filter(m => m.o === s.i); if (own.length >= 2) G.mines.splice(G.mines.indexOf(own[0]), 1);
       const r = 90 + 15 * lv, dd = aa != null ? 80 + pw * 370 : s.rad + r * 0.7, da = aa != null ? aa : s.ang + Math.PI;
-      G.mines.push({ id: G.nid++, x: s.x + Math.cos(da) * dd, y: s.y + Math.sin(da) * dd, vx: s.vx * 0.3, vy: s.vy * 0.3, o: s.i, r, life: 10, tick: 0.8, dmg: 14 + 5 * lv });
-    } else if (p === DSH) { s.boost = 0.3; const da = aa != null ? aa : (ml > 0.05 ? Math.atan2(my, mx) : s.ang); s.vx += Math.cos(da) * 600; s.vy += Math.sin(da) * 600; }
+      G.mines.push({ id: G.nid++, x: s.x + Math.cos(da) * dd, y: s.y + Math.sin(da) * dd, vx: s.vx * 0.3, vy: s.vy * 0.3, o: s.i, r, life: 12, arm: 1, dmg: 28 + 8 * lv,
+        ms: Array.from({ length: 5 + 2 * lv }, () => { const a = rnd(0, 6.28), rr = Math.sqrt(Math.random()) * r; return [Math.cos(a) * rr, Math.sin(a) * rr]; }) });
+    } else if (p === DSH) { s.boost = 0.4; s.phase = 0.4; s.ram = new Set(); s.dashLv = lv; const da = aa != null ? aa : (ml > 0.05 ? Math.atan2(my, mx) : s.ang); s.vx += Math.cos(da) * 800; s.vy += Math.sin(da) * 800; }
     else if (p === RAIL) { const fa2 = aa != null ? aa : (t && Math.abs(angDiff(s.ang, ta)) < 0.3 ? ta : s.ang); s.railQ = { t: 0.45, a: fa2, lv }; ev('g', s.x, s.y, Math.round(fa2 * 100)); }   // charge-up is visible to everyone, so it can be dodged
     else if (p === GRV) {   // temporary gravity well: pulls + slows foes, then collapses into a stun
       const at = aa != null ? { x: s.x + Math.cos(aa) * (150 + pw * 550), y: s.y + Math.sin(aa) * (150 + pw * 550) } : (t && dist(s, t) < 700 ? { x: t.x, y: t.y } : { x: s.x + Math.cos(s.ang) * 350, y: s.y + Math.sin(s.ang) * 350 });
-      G.wells.push({ type: 1, x: at.x, y: at.y, r: 30, gr: 360, g: 650, life: 4, o: s.i }); ev('w', at.x, at.y);
+      G.wells.push({ type: 1, x: at.x, y: at.y, r: 30, gr: 360, g: 900, life: 4.5, o: s.i, lvl: lv }); ev('w', at.x, at.y);
     }
     else if (p === PUL) {
       ev('k', s.x, s.y, 260);
@@ -673,15 +685,16 @@ function stepOnce(dt) {
     if (projHit(p)) G.proj.splice(i, 1);
     else if (p.life <= 0 || Math.hypot(p.x, p.y) > R0 + 300) { if (p.k === 4) explode(p.x, p.y, p.rad, p.dmg, p.o); G.proj.splice(i, 1); }
   }
-  // mine fields (10 s area of mines)
+  // mine fields: every mine is armed after 1 s and detonates on the first enemy (or hostile neutral) that touches it
   for (let i = G.mines.length - 1; i >= 0; i--) {
     const m = G.mines[i], [gx, gy] = gravAt(G.wells, m.x, m.y);
-    m.vx = (m.vx + gx * dt) * 0.98; m.vy = (m.vy + gy * dt) * 0.98; m.x += m.vx * dt; m.y += m.vy * dt; m.life -= dt; m.tick -= dt;
-    if (m.life <= 0) { G.mines.splice(i, 1); continue; }
-    if (m.tick <= 0) {
-      m.tick = 0.6; const ot = teamOf(m.o);
-      for (const sh of G.ships) if (sh.alive && teamOf(sh.i) !== ot && Math.hypot(sh.x - m.x, sh.y - m.y) < m.r + sh.rad) { sh.slow = Math.max(sh.slow || 0, 1.6); hurt(sh, m.dmg, m.o, sh.x, sh.y); ev('x', sh.x + rnd(-20, 20), sh.y + rnd(-20, 20), 18); }
-      for (const n of G.neut) if (!n.dead && Math.hypot(n.x - m.x, n.y - m.y) < m.r + n.rad) hurtNeut(n, m.dmg, n.x, n.y, m.o);
+    m.vx = (m.vx + gx * dt) * 0.98; m.vy = (m.vy + gy * dt) * 0.98; m.x += m.vx * dt; m.y += m.vy * dt; m.life -= dt; m.arm -= dt;
+    if (m.life <= 0 || !m.ms.length) { G.mines.splice(i, 1); continue; }
+    if (m.arm > 0) continue;
+    const ot = teamOf(m.o);
+    for (let k = m.ms.length - 1; k >= 0; k--) {
+      const mx = m.x + m.ms[k][0], my = m.y + m.ms[k][1];
+      if (G.ships.some(sh => sh.alive && teamOf(sh.i) !== ot && Math.hypot(sh.x - mx, sh.y - my) < 42 + sh.rad) || G.neut.some(n => !n.dead && n.type <= 4 && Math.hypot(n.x - mx, n.y - my) < 36 + n.rad)) { explode(mx, my, 80, m.dmg, m.o, true); m.ms.splice(k, 1); }
     }
   }
   // pickups
@@ -800,8 +813,8 @@ function publish(now) {
     a: G.ast.map(a => [a.id, r0(a.x), r0(a.y), r0(a.r), r0(a.hp), r0(a.hpMax), a.rich ? 1 : a.deb ? 2 : 0]),
     p: G.proj.map(p => [p.k, p.o, r0(p.x), r0(p.y), r0(p.vx), r0(p.vy)]),
     k: G.pick.map(c => [c.t, r0(c.x), r0(c.y)]),
-    m: G.mines.map(m => [r0(m.x), r0(m.y), teamOf(m.o), m.r, +m.life.toFixed(1)]),
-    wl: G.wells.map(w => [w.type, r0(w.x), r0(w.y), w.r, w.gr, w.g, w.life != null ? +w.life.toFixed(1) : 0]), pt: G.portals.map(p => [r0(p.x), r0(p.y)]),
+    m: G.mines.map(m => [r0(m.x), r0(m.y), teamOf(m.o), m.r, +m.life.toFixed(1), m.arm > 0 ? 1 : 0, m.ms.map(q => [r0(q[0]), r0(q[1])])]),
+    wl: G.wells.map(w => [w.type, r0(w.x), r0(w.y), w.r, w.gr, w.g, w.life != null ? +w.life.toFixed(1) : 0, w.o == null ? -1 : w.o, w.lvl || 0]), pt: G.portals.map(p => [r0(p.x), r0(p.y)]),
     b: G.bea.map(b => [r0(b.x), r0(b.y), r0(b.p * 100), b.owner, b.cont, b.cap]), pd: G.pads.map(p => [r0(p.x), r0(p.y)]),
     nb: G.nebs.map(n => [r0(n.x), r0(n.y), n.r]), sm: G.streams.map(m => [r0(m.x1), r0(m.y1), r0(m.x2), r0(m.y2), m.w, r0(m.cx), r0(m.cy), +m.str.toFixed(2), +m.ph.toFixed(2)]),
     io: G.ion ? [r0(G.ion.x), r0(G.ion.y), G.ion.r] : 0, gs: +Math.max(0, G.surge).toFixed(1), ly: G.layout,
@@ -885,8 +898,8 @@ function decode(w, at) {
     neut: w.n.map(a => ({ id: a[0], type: a[1], x: a[2], y: a[3], ang: a[4], hp: a[5], hpMax: a[6], rad: a[7], ow: a[8] == null ? -1 : a[8], res: (a[9] || 0) / 100 })),
     ast: w.a.map(a => ({ id: a[0], x: a[1], y: a[2], r: a[3], hp: a[4], hpMax: a[5], k: a[6] || 0 })),
     proj: w.p.map(a => ({ k: a[0], o: a[1], x: a[2], y: a[3], vx: a[4], vy: a[5] })),
-    pick: w.k.map(a => ({ t: a[0], x: a[1], y: a[2] })), mines: w.m.map(a => ({ x: a[0], y: a[1], fac: a[2], r: a[3], life: a[4] })),
-    wells: w.wl.map(a => ({ type: a[0], x: a[1], y: a[2], r: a[3], gr: a[4], g: a[5], life: a[6] || 0 })), portals: w.pt.map(a => ({ x: a[0], y: a[1] })),
+    pick: w.k.map(a => ({ t: a[0], x: a[1], y: a[2] })), mines: w.m.map(a => ({ x: a[0], y: a[1], fac: a[2], r: a[3], life: a[4], arm: a[5], ms: a[6] || [] })),
+    wells: w.wl.map(a => ({ type: a[0], x: a[1], y: a[2], r: a[3], gr: a[4], g: a[5], life: a[6] || 0, o: a[7] == null ? -1 : a[7], lvl: a[8] || 0 })), portals: w.pt.map(a => ({ x: a[0], y: a[1] })),
     bea: w.b.map(a => ({ x: a[0], y: a[1], p: a[2] / 100, owner: a[3], cont: a[4], cap: a[5], r: 150 })),
     nebs: w.nb.map(a => ({ x: a[0], y: a[1], r: a[2] })), streams: w.sm.map(a => buildStream({ x1: a[0], y1: a[1], x2: a[2], y2: a[3], w: a[4], cx: a[5], cy: a[6], str: a[7], ph: a[8] })),
     ion: w.io ? { x: w.io[0], y: w.io[1], r: w.io[2] } : null, surge: w.gs, layout: w.ly, pads: w.pd.map(a => ({ x: a[0], y: a[1], r: 110 })),
@@ -1122,6 +1135,24 @@ function drawShipOld(s, isMe) {
   if (s.shMax > 0) { ctx.fillStyle = '#6cf'; ctx.fillRect(s.x - w / 2, y - 4, w * clamp(s.sh / s.shMax, 0, 1), 3); }
   ctx.fillStyle = '#cfd6e6'; ctx.font = '11px system-ui'; ctx.textAlign = 'center'; ctx.fillText(PL[s.i].name, s.x, y - 9);
 }
+function drawMineField(m) {   // individual spiked mines; dim while arming, then blinking in the owner's colour
+  const col = FC(m.fac), fade = clamp(m.life / 2, 0, 1);
+  ctx.save(); ctx.strokeStyle = col; ctx.globalAlpha = 0.16 * fade; ctx.lineWidth = 2; ctx.setLineDash([4, 10]); ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+  for (const q of m.ms) {
+    const x = m.x + q[0], y = m.y + q[1], blink = m.arm ? 0.25 : 0.55 + 0.45 * Math.sin(TT * 7 + q[0]);
+    ctx.globalAlpha = fade; ctx.fillStyle = '#2b3140'; ctx.beginPath(); ctx.arc(x, y, 7, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#8a93a8'; ctx.lineWidth = 1.5; ctx.beginPath(); for (let a = 0; a < 6; a++) { ctx.moveTo(x + Math.cos(a * 1.047) * 7, y + Math.sin(a * 1.047) * 7); ctx.lineTo(x + Math.cos(a * 1.047) * 11, y + Math.sin(a * 1.047) * 11); } ctx.stroke();
+    ctx.fillStyle = col; ctx.globalAlpha = fade * blink; ctx.beginPath(); ctx.arc(x, y, 3.2, 0, 7); ctx.fill(); ctx.globalAlpha = fade * blink * 0.4; ctx.beginPath(); ctx.arc(x, y, 14, 0, 7); ctx.fill();
+  }
+  ctx.restore();
+}
+function drawBombTelegraph(w) {   // gravity bomb: slow zone, collapse (stun) zone that flashes red before it pops, and a timer ring
+  const col = w.o >= 0 && PL[w.o] ? facC(w.o) : '#ffb870', cr = 170 + 15 * (w.lvl || 1), f = clamp(w.life / 4.5, 0, 1), soon = w.life < 0.9;
+  ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.globalAlpha = 0.5; ctx.setLineDash([12, 10]); ctx.lineDashOffset = -TT * 30; ctx.beginPath(); ctx.arc(w.x, w.y, w.gr * 0.7, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+  ctx.globalAlpha = soon ? 0.6 + 0.4 * Math.sin(TT * 25) : 0.35; ctx.strokeStyle = soon ? '#ff5a3a' : col; ctx.lineWidth = soon ? 4 : 2; ctx.beginPath(); ctx.arc(w.x, w.y, cr, 0, 7); ctx.stroke();
+  ctx.globalAlpha = 0.9; ctx.strokeStyle = col; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(w.x, w.y, 48, -Math.PI / 2, -Math.PI / 2 + f * 6.283); ctx.stroke();
+  ctx.restore();
+}
 function drawStreamFlow(st, tt) {   // faint bubbles drifting along a curved current; denser/brighter when it is strong
   const k = streamK(st), len = Math.hypot(st.x2 - st.x1, st.y2 - st.y1) * 1.1, n = Math.floor(len / 34);
   ctx.save(); ctx.fillStyle = 'rgba(170,225,255,1)';
@@ -1227,7 +1258,7 @@ function frame(now) {
     ctx.strokeStyle = '#ff4d4d'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, 0, V.z, 0, 7); ctx.stroke();
   }
   for (const w of V.wells) {
-    if (ART2 && w.life > 0) { try { Art2.fx.gravityWell(ctx, w, tt); } catch (e) {} continue; }   // gravity bomb
+    if (ART2 && w.life > 0) { try { Art2.fx.gravityWell(ctx, w, tt); } catch (e) {} drawBombTelegraph(w); continue; }   // gravity bomb
     if (w.type === 0 && W2.planet && A2(() => W2.planet(ctx, w, tt))) continue;
     if (w.type === 2 && W2.star && A2(() => W2.star(ctx, w, tt))) continue;
     if (w.type === 1 && W2.gravityHole && A2(() => W2.gravityHole(ctx, w, tt, V.surge))) continue;
@@ -1272,7 +1303,7 @@ function frame(now) {
   }
   for (const d of V.drops) { if (W2.supplyDrop && A2(() => W2.supplyDrop(ctx, d, tt))) continue; ctx.strokeStyle = '#ffe066'; ctx.lineWidth = 3; ctx.globalAlpha = 0.5 + 0.4 * Math.sin(tt * 5); ctx.beginPath(); ctx.arc(d.x, d.y, 50 + Math.sin(tt * 3) * 6, 0, 7); ctx.stroke(); ctx.globalAlpha = 1; }
   for (const m of V.mines) {   // mine field: area of mines, fades out over its last 2 s
-    if (ART2) { try { Art2.fx.mineField(ctx, m, tt); } catch (e) {} continue; }
+    drawMineField(m); continue;
     const col = FC(m.fac), fade = clamp(m.life / 2, 0, 1);
     ctx.fillStyle = col; ctx.globalAlpha = 0.1 * fade + 0.04; ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, 7); ctx.fill();
     ctx.strokeStyle = col; ctx.globalAlpha = 0.5 * fade; ctx.lineWidth = 2; ctx.setLineDash([6, 8]); ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, 7); ctx.stroke(); ctx.setLineDash([]);
