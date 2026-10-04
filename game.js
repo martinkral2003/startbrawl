@@ -354,9 +354,9 @@ function hurt(s, dmg, by, x, y) {
   if (!s.alive || G.over || s.inv > 0) return;
   s.lastHit = G.t;
   dmg *= (s.emp > 0 ? 1.35 : 1) * (s.slow > 0 ? 1.15 : 1);   // combo window: stunned +35%, slowed +15%
-  if (s.sh > 0) { const a = Math.min(s.sh, dmg); s.sh -= a; dmg -= a; ev('s', x, y); if (dmg <= 0) return; }
+  if (s.sh > 0) { const a = Math.min(s.sh, dmg); s.sh -= a; dmg -= a; ev('s', x, y, Math.round(a)); if (dmg <= 0) return; }
   dmg *= 1 - 0.07 * eff(s, ARM);
-  s.hp -= dmg; ev('h', x, y);
+  s.hp -= dmg; ev('h', x, y, Math.round(dmg));
   if (s.hp <= 0) killShip(s, by);
 }
 function killShip(s, by) {
@@ -382,7 +382,7 @@ function dropOrbs(x, y, total, n) {
 }
 function hurtNeut(n, dmg, x, y, by) {
   if (n.dead || n.type === 5 || (n.type === 6 && by >= 0 && teamOf(by) === teamOf(n.ow))) return;
-  n.hp -= dmg; ev('h', x, y); if (by >= 0) n.by = by;
+  n.hp -= dmg; ev('h', x, y, Math.round(dmg)); if (by >= 0) n.by = by;
   if (n.hp > 0) return;
   n.dead = true; ev('x', n.x, n.y, n.rad * 2);
   if (n.type === 6) { logMsg('An escort ship was destroyed'); return; }
@@ -399,7 +399,7 @@ function hurtNeut(n, dmg, x, y, by) {
 }
 function hurtAst(a, dmg, x, y) {
   if (a.dead) return;
-  a.hp -= dmg; ev('h', x, y);
+  a.hp -= dmg; ev('h', x, y, Math.round(dmg));
   if (a.hp <= 0) { a.dead = true; ev('x', a.x, a.y, a.r); if (a.rich) dropOrbs(a.x, a.y, a.r * 1.5, 3); else dropOrbs(a.x, a.y, a.r * 0.25, 1); }
 }
 function spawnProj(k, o, x, y, ang, speed, life, dmg, extra) {
@@ -504,10 +504,11 @@ function updateShip(s, dt) {
   s.tgtNow = t;
   if (s.emp > 0) { s.railQ = null; return; }
   if (s.railQ) { s.railQ.t -= dt; if (s.railQ.t <= 0) { const q = s.railQ; s.railQ = null; spawnProj(7, s.i, s.x + Math.cos(q.a) * s.rad, s.y + Math.sin(q.a) * s.rad, q.a, 1500, 0.8, 70 + 25 * q.lv, { hit: [] }); ev('f', s.x, s.y, s.i); } }
+  s.bAcc = t ? Math.min(0.2, (s.bAcc || 0) + dt) : 0;
   if (t && s.fireT <= 0 && dist(s, t) < LASER_RANGE + (t.rad || t.r || 0)) {
-    const l = L(LAS), n = 1 + (l >= 2 ? 1 : 0) + (l >= 3 ? 1 : 0); s.fireT = 0.55 - 0.03 * l;
-    fireBeam(s, t, n * (5 + 1.5 * l), s.i, s.i);
-    ev('f', s.x, s.y, s.i);
+    const l = L(LAS), n = 1 + (l >= 2 ? 1 : 0) + (l >= 3 ? 1 : 0); s.fireT = 0.1;
+    fireBeam(s, t, n * (5 + 1.5 * l) / (0.55 - 0.03 * l) * Math.max(0.05, s.bAcc), s.i, s.i); s.bAcc = 0;
+    if ((s.fN = (s.fN || 0) + 1) % 3 === 0) ev('f', s.x, s.y, s.i);
   }
   // skills
   for (let j = 0; j < 3; j++) {
@@ -600,7 +601,7 @@ function updateNeut(n, dt) {
     n.vx += (dx / d * sp - n.vx) * Math.min(1, 3 * dt); n.vy += (dy / d * sp - n.vy) * Math.min(1, 3 * dt); n.x += n.vx * dt; n.y += n.vy * dt;
     const foe = nearest(targetsFor(n.ow), n, 520);
     n.ang = foe ? Math.atan2(foe.y - n.y, foe.x - n.x) : (Math.hypot(n.vx, n.vy) > 5 ? Math.atan2(n.vy, n.vx) : n.ang);
-    if (foe && (n.shT -= dt) <= 0) { n.shT = 0.9; fireBeam(n, foe, 5, n.ow, 1000 + n.id); }
+    if (foe && (n.shT -= dt) <= 0) { n.shT = 0.1; fireBeam(n, foe, 0.65, n.ow, 1000 + n.id); }
     return;
   }
   if (n.type === 3) {   // sentry: stationary turret, bursts at the nearest ship in range
@@ -1038,13 +1039,13 @@ function processEvents2(list) {
   try {
     for (const [t, x, y, r] of list) {
       if (t === 'f') FIRE[r] = 1;
-      else if (t === 'h') { const sh = nearestShip(x, y, 80); if (sh) { HIT[sh.i] = 0.6; if (sh.i === myi) { SHAKE = Math.max(SHAKE, 7); FLASH = Math.min(1, FLASH + 0.45); } } Art2.fx.spawn('spark', x, y, {}); }
-      else if (t === 's') { const sh = nearestShip(x, y, 110); if (sh) { Art2.shield.hit(sh.i, Math.atan2(y - sh.y, x - sh.x), 1); if (sh.i === myi) SHAKE = Math.max(SHAKE, 3); } }
+      else if (t === 'h') { const sh = nearestShip(x, y, 80); if (sh && r >= 8) { HIT[sh.i] = 0.6; if (sh.i === myi) { SHAKE = Math.max(SHAKE, 7); FLASH = Math.min(1, FLASH + 0.45); } } if (r >= 8 || Math.random() < 0.25) Art2.fx.spawn('spark', x, y, {}); }
+      else if (t === 's') { const sh = nearestShip(x, y, 110); if (sh) { Art2.shield.hit(sh.i, Math.atan2(y - sh.y, x - sh.x), 1); if (sh.i === myi && r >= 8) SHAKE = Math.max(SHAKE, 3); } }
       else if (t === 'x') { Art2.fx.spawn('explosion', x, y, { size: r < 40 ? 'small' : r < 120 ? 'medium' : 'large' }); const mv = VIEWNOW && VIEWNOW.ships[myi]; if (mv && mv.alive) { const d = Math.hypot(mv.x - x, mv.y - y); if (d < 500) SHAKE = Math.max(SHAKE, (r < 40 ? 3 : 9) * (1 - d / 500)); } }
       else if (t === 'k') Art2.fx.spawn('shockwave', x, y, { r, col: '#9ff' });
       else if (t === 'd') { Art2.fx.spawn('death', x, y, { col: PL[r] ? facC(r) : '#fff' }); const mv = VIEWNOW && VIEWNOW.ships[myi]; if (mv && mv.alive) { const d = Math.hypot(mv.x - x, mv.y - y); if (d < 700) SHAKE = Math.max(SHAKE, 11 * (1 - d / 700)); } }
       else if (t === 'w') Art2.fx.spawn('shockwave', x, y, { r: 80, col: '#8ff' });
-      else if (t === 'l') { BEAMS.push({ s: r, x, y, until: performance.now() + 220 }); Art2.fx.spawn('spark', x, y, {}); }
+      else if (t === 'l') { const nw = performance.now(), b0 = BEAMS.find(q => q.s === r); if (b0) { b0.tx = x; b0.ty = y; b0.until = nw + 220; } else BEAMS.push({ s: r, x, y, tx: x, ty: y, until: nw + 220 }); }
       else if (t === 'g') TELE.push({ x, y, a: r / 100, until: performance.now() + 450 });
     }
   } catch (e) { if (!window.__artErr) { window.__artErr = e.message; console.error('Art2 events', e); } }
@@ -1291,7 +1292,7 @@ function frame(now) {
     for (let i = BEAMS.length - 1; i >= 0; i--) {
       const b = BEAMS[i]; if (b.until < nb) { BEAMS.splice(i, 1); continue; }
       const sh = b.s < 1000 ? V.ships[b.s] : V.neut.find(n => n.id === b.s - 1000); if (!sh || sh.alive === false) continue;
-      const f = (b.until - nb) / 220, col = b.s < 1000 ? facC(b.s) : (sh.ow >= 0 && PL[sh.ow] ? facC(sh.ow) : '#ff9a3d'), th = b.s < 1000 ? 1 + (sh.lv ? sh.lv[LAS] : 0) * 0.6 : 0.8;
+      b.x += (b.tx - b.x) * 0.5; b.y += (b.ty - b.y) * 0.5; const f = Math.min(1, (b.until - nb) / 110) * (0.88 + 0.12 * Math.sin(nb / 45 + b.s)), col = b.s < 1000 ? facC(b.s) : (sh.ow >= 0 && PL[sh.ow] ? facC(sh.ow) : '#ff9a3d'), th = b.s < 1000 ? 1 + (sh.lv ? sh.lv[LAS] : 0) * 0.6 : 0.8;
       const ang = Math.atan2(b.y - sh.y, b.x - sh.x), rr = sh.lv ? radOf(sh.lv) : (sh.rad || 14);
       ctx.beginPath(); ctx.moveTo(sh.x + Math.cos(ang) * rr * 1.1, sh.y + Math.sin(ang) * rr * 1.1); ctx.lineTo(b.x, b.y);
       ctx.strokeStyle = col; ctx.globalAlpha = 0.4 * f; ctx.lineWidth = 9 * th * f + 2; ctx.stroke();
