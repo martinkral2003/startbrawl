@@ -505,7 +505,7 @@ function updateShip(s, dt) {
   // target resolution + auto-fire lasers
   let t = tgtObj(I.tg);
   if (!t || !enemyOf(s, t) || dist(s, t) > 720) t = null;
-  if (!t) t = nearest(enemyShips(s), s, LASER_RANGE) || nearest(G.neut.filter(n => !n.dead && (n.type <= 4 || (n.type === 6 && teamOf(n.ow) !== teamOf(s.i)))), s, 560) || nearest(G.ast, s, 330);
+  if (!t) t = nearest(enemyShips(s), s, LASER_RANGE) || nearest(G.neut.filter(n => !n.dead && (n.type <= 4 || (n.type === 6 && teamOf(n.ow) !== teamOf(s.i)))), s, 560) || nearest(G.ast.filter(a => !a.big), s, 330);
   s.tgtNow = t;
   if (s.emp > 0) { s.railQ = null; return; }
   if (s.railQ) { s.railQ.t -= dt; if (s.railQ.t <= 0) { const q = s.railQ; s.railQ = null; spawnProj(7, s.i, s.x + Math.cos(q.a) * s.rad, s.y + Math.sin(q.a) * s.rad, q.a, 1500, 0.8, 70 + 25 * q.lv, { hit: [] }); ev('f', s.x, s.y, s.i); } }
@@ -969,7 +969,8 @@ function tapTarget(sx, sy) {
   let best = null, bd = 1e9;
   const test = (o, id, r) => { const d = Math.hypot(o.x - w.x, o.y - w.y) - r; if (d < slop && d < bd) { bd = d; best = id; } };
   V.ships.forEach(s => { if (s.alive && PL[s.i].fac !== mt) test(s, 's' + s.i, radOf(s.lv)); });
-  V.neut.forEach(n => { if (n.type === 5 || (n.type === 6 && PL[n.ow] && PL[n.ow].fac === mt)) return; test(n, 'n' + n.id, n.rad); }); V.ast.forEach(a => test(a, 'a' + a.id, a.r));
+  V.ast.forEach(a => { if (a.hpMax < 1e5) test(a, 'a' + a.id, a.r); });
+  V.neut.forEach(n => { if (n.type === 5 || (n.type === 6 && PL[n.ow] && PL[n.ow].fac === mt)) return; test(n, 'n' + n.id, n.rad); });
   myTg = best || '';
 }
 cv.addEventListener('contextmenu', e => e.preventDefault());
@@ -1318,6 +1319,13 @@ function frame(now) {
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   if (!(AH && A2(() => drawHUD2(V, me, M, now)))) drawHUD(V, me, M, now);
 }
+function cdOverlay(b, cd, mx, col) {   // clear cooldown: dimmed button, big seconds left, and a ring that drains
+  const f = clamp(cd / mx, 0, 1), txt = cd >= 10 ? String(Math.ceil(cd)) : cd.toFixed(1);
+  ctx.save(); ctx.fillStyle = 'rgba(4,8,18,0.62)'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7); ctx.fill();
+  ctx.strokeStyle = col; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r + 6, -Math.PI / 2, -Math.PI / 2 + f * 6.283); ctx.stroke();
+  ctx.font = 'bold ' + Math.round(b.r * 0.85) + 'px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.strokeText(txt, b.x, b.y); ctx.fillStyle = '#fff'; ctx.fillText(txt, b.x, b.y);
+  ctx.restore();
+}
 function drawHUD2(V, me, M, now) {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   if (FLASH > 0.02) { const g = ctx.createRadialGradient(CW / 2, CH / 2, Math.min(CW, CH) * 0.35, CW / 2, CH / 2, Math.max(CW, CH) * 0.7); g.addColorStop(0, 'rgba(255,40,40,0)'); g.addColorStop(1, 'rgba(255,40,40,' + (0.45 * FLASH) + ')'); ctx.fillStyle = g; ctx.fillRect(0, 0, CW, CH); }
@@ -1341,7 +1349,7 @@ function drawHUD2(V, me, M, now) {
   if (!M || !M.alive) { banner(cap && M ? 'Respawning in ' + Math.ceil(M.rs) + '…' : 'Destroyed — tap to switch spectated ship', CW / 2, CH - 30 - SA.b, '#ff7a7a'); return; }
   const lo = thresh(M.level), hi = thresh(M.level + 1), mc = H2.MODCOL || PCOL;
   H2.bars(ctx, { x: L0, y: T0, hpf: clamp(M.hp / M.hpMax, 0, 1), shf: M.shMax ? clamp(M.sh / M.shMax, 0, 1) : 0, hasShield: M.shMax > 0, xpf: M.level >= MAXLV ? 1 : clamp((M.scrap - lo) / (hi - lo), 0, 1), level: M.level, maxLevel: MAXLV, lv: M.lv, col: facC(me) }, TT);
-  for (let j = 0; j < 3; j++) { const p = M.sk[j]; H2.skillButton(ctx, Lo.btn[j], { mod: p, cd: p >= 0 ? M.cd[j] : 0, cdMax: p >= 0 ? cdMax(M.lv, p) : 1, ready: p >= 0 && M.cd[j] <= 0, col: p >= 0 ? mc[p] : '#2a3350' }, TT); }
+  for (let j = 0; j < 3; j++) { const p = M.sk[j]; H2.skillButton(ctx, Lo.btn[j], { mod: p, cd: p >= 0 ? M.cd[j] : 0, cdMax: p >= 0 ? cdMax(M.lv, p) : 1, ready: p >= 0 && M.cd[j] <= 0, col: p >= 0 ? mc[p] : '#2a3350' }, TT); if (p >= 0 && M.cd[j] > 0) cdOverlay(Lo.btn[j], M.cd[j], cdMax(M.lv, p), mc[p]); }
   if (JOY) H2.joystick(ctx, JOY);
   if (M.emp) banner('EMP — SYSTEMS DOWN', CW / 2, CH / 2 + 110, '#9cf');
   if (M.pending > 0 && M.offers.length) {

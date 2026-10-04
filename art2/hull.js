@@ -8,8 +8,8 @@
   const poly = (c, p, sg) => { c.moveTo(p[0][0], p[0][1] * sg); for (let i = 1; i < p.length; i++) c.lineTo(p[i][0], p[i][1] * sg); c.closePath(); };
   const both = (c, p) => { poly(c, p, 1); poly(c, p, -1); };
   const sym = (c, p, bw) => { c.moveTo(p[0][0], 0); for (let i = 1; i < p.length; i++) c.lineTo(p[i][0], p[i][1] * bw); for (let i = p.length - 1; i > 0; i--) c.lineTo(p[i][0], -p[i][1] * bw); c.closePath(); };
-  const BODY = [[1.5, 0], [1.38, .045], [1.2, .08], [1.02, .15], [.92, .2], [.6, .22], [.2, .28], [-.3, .31], [-.75, .29], [-1.0, .23], [-1.02, 0]];
-  const DECK = [[1.22, 0], [1.0, .07], [.82, .13], [.55, .16], [.2, .21], [-.3, .24], [-.7, .22], [-.78, 0]];
+  const BODY = [[1.22, 0], [1.16, .05], [1.06, .1], [.96, .16], [.88, .2], [.6, .22], [.2, .28], [-.3, .31], [-.75, .29], [-1.0, .23], [-1.02, 0]];
+  const DECK = [[1.0, 0], [.9, .06], [.78, .12], [.55, .16], [.2, .21], [-.3, .24], [-.7, .22], [-.78, 0]];
   const WING = [[.28, .26], [.02, .6], [-.3, .92], [-.55, .97], [-.98, .88], [-.72, .64], [-.9, .5], [-.85, .28]];
   const WPL1 = [[.18, .3], [-.02, .58], [-.3, .82], [-.5, .62], [-.55, .33]];
   const WPL2 = [[-.5, .64], [-.3, .85], [-.58, .93], [-.8, .86], [-.68, .66]];
@@ -18,7 +18,7 @@
   const STRAKE = [[.46, .27], [.3, .5], [.05, .72], [-.06, .6], [.15, .3]];
   const FIN = [[-.3, .3], [-.78, .45], [-.88, .3]];
   const SHROUD = [[-.6, .19], [-.98, .22], [-1.0, .35], [-.72, .31]];
-  const PRONG = [[1.0, .2], [1.32, .27], [1.0, .3]];
+  const PRONG = [[.9, .2], [1.1, .27], [.9, .3]];
 
   const cache = new Map();
   function build(tier, v) {
@@ -90,7 +90,7 @@
     c.strokeStyle = rim; c.lineWidth = lw * 1.3; c.stroke(P.body);
     // beak + body trim
     c.strokeStyle = rgba(col, .85); c.lineWidth = lw * 1.8; c.beginPath();
-    c.moveTo(1.12, .08 * bw); c.lineTo(.96, .17 * bw); c.moveTo(1.12, -.08 * bw); c.lineTo(.96, -.17 * bw);
+    c.moveTo(1.02, .07 * bw); c.lineTo(.9, .15 * bw); c.moveTo(1.02, -.07 * bw); c.lineTo(.9, -.15 * bw);
     c.moveTo(.55, .21 * bw); c.lineTo(-.3, .29 * bw); c.moveTo(.55, -.21 * bw); c.lineTo(-.3, -.29 * bw); c.stroke();
     if (lod) {
       c.beginPath(); c.strokeStyle = seam; c.lineWidth = lw * .8;
@@ -98,7 +98,7 @@
       c.stroke();
       c.fillStyle = '#05080d'; c.beginPath(); // vents, sensor slit
       for (const sg of [1, -1]) { for (let i = 0; i < 3; i++) c.rect(-.5 - i * .1, .12 * sg * bw - .016, .06, .032); c.rect(-.4, .66 * sg - .02, .2, .04); }
-      c.rect(1.0, -.02, .2, .04);
+      c.rect(.8, -.02, .16, .04);
       c.fill();
       c.strokeStyle = 'rgba(200,215,235,.55)'; c.lineWidth = lw; c.beginPath(); // antenna
       c.moveTo(-.2, -.3 * bw); c.lineTo(-.5, -.52);

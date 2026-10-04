@@ -58,7 +58,7 @@
   A.mods.railgun = function (c, o) {
     if (!o.l) return;
     const r = o.r, l = o.l, lod = o.lod, fire = o.fire || 0;
-    const x0 = 0.1 * r, x1 = 1.9 * r, ry = 0.075 * r, rw = 0.05 * r;
+    const x0 = 0.1 * r, x1 = 1.35 * r, ry = 0.075 * r, rw = 0.05 * r;
     const nc = 2 + l;                           // coil pairs
     const en = 0.3 + 0.25 * l;                  // coil energy
     const pulse = 0.85 + 0.15 * Math.sin(o.t * 5);
