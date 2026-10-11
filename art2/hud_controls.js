@@ -3,7 +3,7 @@
   const A = window.Art2 = window.Art2 || {};
   const H = A.hud = A.hud || {};
   const TAU = Math.PI * 2;
-  const MODCOL = H.MODCOL = ['#c8d0e0', '#ff6b6b', '#66ccff', '#99eeff', '#69db7c', '#ffa94d', '#ffd43b', '#b197fc', '#ff8787', '#74c0fc', '#99ffff', '#ffb870', '#e599f7'];
+  const MODCOL = H.MODCOL = ['#c8d0e0', '#ff6b6b', '#66ccff', '#99eeff', '#69db7c', '#ffa94d', '#ffd43b', '#b197fc', '#ff8787', '#74c0fc', '#99ffff', '#ffb870', '#e599f7', '#a9b8ff', '#ff6a4d', '#7fd8ff', '#8cf0a0', '#fff07a', '#ffb3e6'];
   const FONT = 'system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
   const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 
@@ -75,6 +75,35 @@
     (c) => {
       c.beginPath(); c.arc(0, 0, 0.17, 0, TAU); c.fill();
       for (const r of [0.45, 0.8]) { c.beginPath(); c.arc(0, 0, r, 0, TAU); c.stroke(); }
+    },
+    // 13 CLK: dashed ring with an eye
+    (c) => {
+      c.setLineDash([0.25, 0.2]); c.beginPath(); c.arc(0, 0, 0.82, 0, TAU); c.stroke(); c.setLineDash([]);
+      c.beginPath(); c.moveTo(-0.55, 0); c.quadraticCurveTo(0, -0.5, 0.55, 0); c.quadraticCurveTo(0, 0.5, -0.55, 0); c.stroke();
+      c.beginPath(); c.arc(0, 0, 0.17, 0, TAU); c.fill();
+    },
+    // 14 OD: lightning bolt
+    (c) => {
+      c.beginPath(); c.moveTo(0.2, -0.95); c.lineTo(-0.5, 0.1); c.lineTo(-0.05, 0.1); c.lineTo(-0.25, 0.95); c.lineTo(0.55, -0.15); c.lineTo(0.1, -0.15); c.closePath(); c.fill();
+    },
+    // 15 AEG: hex barrier
+    (c) => {
+      c.beginPath(); for (let i = 0; i < 6; i++) { const a = i * TAU / 6 + TAU / 12, x = Math.cos(a) * 0.85, y = Math.sin(a) * 0.85; i ? c.lineTo(x, y) : c.moveTo(x, y); }
+      c.closePath(); c.globalAlpha *= 0.3; c.fill(); c.globalAlpha /= 0.3; c.stroke(); c.beginPath(); c.arc(0, 0, 0.4, 0, TAU); c.stroke();
+    },
+    // 16 NAN: medical cross in a ring
+    (c) => {
+      c.beginPath(); c.arc(0, 0, 0.85, 0, TAU); c.stroke(); c.fillRect(-0.15, -0.5, 0.3, 1); c.fillRect(-0.5, -0.15, 1, 0.3);
+    },
+    // 17 ARC: forked lightning
+    (c) => {
+      c.beginPath(); c.moveTo(-0.9, -0.5); c.lineTo(-0.3, 0.05); c.lineTo(-0.5, 0.1); c.lineTo(0.2, 0.55); c.stroke();
+      c.beginPath(); c.moveTo(-0.3, 0.05); c.lineTo(0.5, -0.35); c.lineTo(0.3, -0.4); c.lineTo(0.95, -0.7); c.stroke();
+      c.beginPath(); c.arc(0.2, 0.55, 0.14, 0, TAU); c.fill(); c.beginPath(); c.arc(0.95, -0.7, 0.12, 0, TAU); c.fill();
+    },
+    // 18 FLT: three ships in formation
+    (c) => {
+      for (const [x, y] of [[0.5, 0], [-0.35, -0.5], [-0.35, 0.5]]) { c.beginPath(); c.moveTo(x + 0.45, y); c.lineTo(x - 0.35, y + 0.3); c.lineTo(x - 0.15, y); c.lineTo(x - 0.35, y - 0.3); c.closePath(); c.fill(); }
     }
   ];
 
@@ -167,7 +196,7 @@
       else if (i < lt) { ctx.globalAlpha = 0.45 + 0.4 * Math.sin(t * 6); ctx.fillStyle = col; ctx.fillRect(px, py - 2, 11, ph); ctx.globalAlpha = 1; ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.strokeRect(px + 0.5, py - 1.5, 10, ph - 1); }
       else { ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(px, py - 2, 11, ph); }
     }
-    ctx.textAlign = 'left'; ctx.font = `600 ${fs - 3}px ${FONT}`; ctx.fillStyle = 'rgba(200,215,230,0.75)'; ctx.fillText(`Lv ${lf} → ${lt}`, tx + 44, py + 3);
+    ctx.textAlign = 'left'; ctx.font = `600 ${fs - 3}px ${FONT}`; ctx.fillStyle = 'rgba(200,215,230,0.75)'; ctx.fillText(info.branch ? 'SPECIALISE' : `Lv ${lf} → ${lt}`, tx + 44, py + 3);
     ctx.font = `${fs - 2}px ${FONT}`; ctx.fillStyle = 'rgba(190,205,222,0.85)';
     ctx.fillText(info.desc || '', tx, y + h - pad - 1, w - (tx - x) - pad);
     // key number

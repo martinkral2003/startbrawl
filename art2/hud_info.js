@@ -83,6 +83,16 @@
       rr(c, x, y, bw, bh, bh / 2); c.lineWidth = 1; c.strokeStyle = 'rgba(190,225,255,0.45)'; c.stroke();
       text(c, fmt(st.time), cx, y + bh + 14, 14, '#e8f4ff', 'center', 700);
       bottom = y0 + 41;
+    } else if (st.cond === 'score') {
+      const sc = Array.isArray(st.scores) ? st.scores : [], n = Math.max(1, sc.length), cw = n <= 2 ? 64 : 38, w = Math.max(190, n * cw + 40);
+      panel(c, cx - w / 2, y0, w, 44, 8);
+      text(c, fmt(st.time) + '  ·  first to ' + num(st.target, 0), cx, y0 + 12, 11, ACC, 'center', 700);
+      for (let i = 0; i < n; i++) {
+        const x = cx - (n * cw) / 2 + cw * (i + 0.5), cc = f(i);
+        text(c, String(Math.floor(num(sc[i], 0))), x, y0 + 29, 16, cc, 'center', 800);
+        if (i === st.me) { c.fillStyle = rgba(cc, 0.85); c.fillRect(x - 11, y0 + 38, 22, 2); }
+      }
+      bottom = y0 + 44;
     } else if (st.mode === 'ffa') {
       panel(c, cx - 78, y0, 156, 28, 8);
       text(c, num(st.aliveTotal, 0) + ' alive', cx - 32, y0 + 14, 13, '#e8f4ff', 'center', 700);
@@ -113,7 +123,7 @@
     st = st || {}; t = num(t, 0);
     const x = num(st.x, 12), y = num(st.y, 12), W = 208, lv = st.lv || [], cc = col(st.col, ACC);
     const hp = clamp01(st.hpf), hasSh = !!st.hasShield;
-    const hh = 8 + (hasSh ? 14 : 0) + 18 + 12 + 24;
+    const hh = 8 + (hasSh ? 14 : 0) + 18 + 12 + 24 + (lv.length > 13 ? 21 : 0);
     c.save();
     panel(c, x - 8, y - 8, W + 16, hh + 8, 8, cc);
     let yy = y;
@@ -131,14 +141,14 @@
       }
     }
     yy += 10;
-    const sl = (W - 12 * 2) / 13;
-    for (let i = 0; i < 13; i++) {
-      const sx = x + i * (sl + 2), l = num(lv[i], 0), on = l > 0, mc = (A.COL8 && A.COL8[i % 8]) || ACC;
-      rr(c, sx, yy, sl, sl, 2); c.fillStyle = on ? rgba(col(mc, ACC), 0.20) : 'rgba(0,0,0,0.4)'; c.fill();
+    const nm = Math.max(13, lv.length), per = nm > 13 ? 10 : 13, sl = (W - (per - 1) * 2) / per;
+    for (let i = 0; i < nm; i++) {
+      const sx = x + (i % per) * (sl + 2), ry = yy + Math.floor(i / per) * (sl + 2), l = num(lv[i], 0), on = l > 0, mc = (A.COL8 && A.COL8[i % 8]) || ACC;
+      rr(c, sx, ry, sl, sl, 2); c.fillStyle = on ? rgba(col(mc, ACC), 0.20) : 'rgba(0,0,0,0.4)'; c.fill();
       c.lineWidth = 1; c.strokeStyle = on ? rgba(col(mc, ACC), 0.8) : 'rgba(120,150,190,0.2)'; c.stroke();
-      if (typeof H.icon === 'function') { try { H.icon(c, i, sx + sl / 2, yy + sl / 2, sl * 0.78, on ? '#eaf6ff' : 'rgba(150,170,200,0.3)'); } catch (e) { } }
-      else if (on) { c.fillStyle = '#eaf6ff'; c.fillRect(sx + sl / 2 - 2, yy + sl / 2 - 2, 4, 4); }
-      for (let k = 0; k < l; k++) { c.fillStyle = '#fff'; c.fillRect(sx + 1.5 + k * 3, yy + sl - 3, 2, 1.5); }
+      if (typeof H.icon === 'function') { try { H.icon(c, i, sx + sl / 2, ry + sl / 2, sl * 0.78, on ? '#eaf6ff' : 'rgba(150,170,200,0.3)'); } catch (e) { } }
+      else if (on) { c.fillStyle = '#eaf6ff'; c.fillRect(sx + sl / 2 - 2, ry + sl / 2 - 2, 4, 4); }
+      for (let k = 0; k < l; k++) { c.fillStyle = '#fff'; c.fillRect(sx + 1.5 + k * 3, ry + sl - 3, 2, 1.5); }
     }
     c.restore();
   };
