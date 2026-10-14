@@ -6,9 +6,16 @@
   A.LIGHT = -2.2;                       // world-space direction TOWARDS the light (up-left)
   A.STEEL = '#8c9bb0';                  // base hull metal
   A.COL8 = ['#ff5a5a', '#4da3ff', '#5ee07a', '#ffd34d', '#c779ff', '#ff9a3d', '#38e0d0', '#ff7ad1'];
-  A.hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const hexC = new Map();
+  A.hex = h => { let v = hexC.get(h); if (!v) { v = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)); hexC.set(h, v); } return v; };   // memoised: called for every glow / tint / trim colour, every frame
   // mix(hex, t): t<0 darkens toward black, t>0 lightens toward white; returns 'rgb(...)'
-  A.mix = (h, t) => { const [r, g, b] = A.hex(h), k = t < 0 ? 0 : 255, a = Math.abs(t); return `rgb(${r + (k - r) * a | 0},${g + (k - g) * a | 0},${b + (k - b) * a | 0})`; };
+  const mixC = new Map();
+  A.mix = (h, t) => {
+    let m = mixC.get(h); if (!m) { m = new Map(); mixC.set(h, m); }
+    let v = m.get(t); if (v) return v;
+    const [r, g, b] = A.hex(h), k = t < 0 ? 0 : 255, a = Math.abs(t); v = `rgb(${r + (k - r) * a | 0},${g + (k - g) * a | 0},${b + (k - b) * a | 0})`;
+    if (m.size < 64) m.set(t, v); return v;
+  };
   A.rgba = (h, a) => { const [r, g, b] = A.hex(h); return `rgba(${r},${g},${b},${a})`; };
   A.rng = s => () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
   // Gradient caching: a radial gradient costs far more than blitting a prebaked sprite, and glows are used everywhere (lights, engines, shields, particles).
@@ -46,9 +53,11 @@
   // so ships/buttons reuse a handful of gradient objects instead of creating several per ship per frame.
   const lgCache = new Map();
   A.litGrad = (c, ang, s, c0, c1, c2) => {
-    const q = Math.round((((A.LIGHT - ang) % A.TAU) + A.TAU) % A.TAU / A.TAU * 64) & 63, key = s + '|' + c0 + '|' + c1 + '|' + c2;
-    let arr = lgCache.get(key);
-    if (!arr) { if (lgCache.size > 500) lgCache.clear(); arr = new Array(64); lgCache.set(key, arr); }
+    const q = Math.round((((A.LIGHT - ang) % A.TAU) + A.TAU) % A.TAU / A.TAU * 64) & 63;
+    let m1 = lgCache.get(c0); if (!m1) { if (lgCache.size > 300) lgCache.clear(); m1 = new Map(); lgCache.set(c0, m1); }
+    let m2 = m1.get(c1); if (!m2) { m2 = new Map(); m1.set(c1, m2); }
+    let m3 = m2.get(c2); if (!m3) { m3 = new Map(); m2.set(c2, m3); }
+    let arr = m3.get(s); if (!arr) { arr = new Array(64); m3.set(s, arr); }
     let g = arr[q];
     if (!g) { const la = q / 64 * A.TAU, dx = Math.cos(la) * s, dy = Math.sin(la) * s; g = arr[q] = c.createLinearGradient(dx, dy, -dx, -dy); g.addColorStop(0, c0); g.addColorStop(0.5, c1); g.addColorStop(1, c2); }
     return g;

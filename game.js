@@ -17,37 +17,37 @@ const PARTS = [ // name, desc, tag, active?
   ['Torpedo', 'blast at your target, stuns [skill]', 'TP', 1], ['Drones', 'kamikaze swarm [skill]', 'DR', 1],
   ['Mine Layer', 'field of mines behind you: blow + slow [skill]', 'MN', 1], ['Afterburner', 'dash: untouchable 0.4 s, rams foes [skill]', 'AB', 1],
   ['Railgun', 'charged bolt at your target, hits stunned harder [skill]', 'RG', 1], ['Gravity Bomb', 'brief well: pulls + slows foes, then stuns [skill]', 'GB', 1], ['Shockwave', 'stun + slow + push, clears shots [skill]', 'SW', 1],
-  ['Cloak Field', 'vanish from enemy targeting; breaks when hit [skill]', 'CL', 1], ['Overdrive', '+30% damage & speed for a few seconds [skill]', 'OD', 1],
+  ['Cloak Field', 'vanish from enemy targeting; breaks when hit [skill]', 'CL', 1], ['Overdrive', '+35% laser damage & +30% speed for a few seconds [skill]', 'OD', 1],
   ['Aegis Barrier', 'bubble that destroys incoming shots [skill]', 'AG', 1], ['Repair Field', 'healing zone for allies & escorts [skill]', 'NF', 1],
   ['Arc Storm', 'chain lightning: damages + stuns several foes [skill]', 'AS', 1], ['Reinforcements', 'call temporary escort ships to fight for you [skill]', 'RF', 1],
   ['Scatter Cannon', 'point-blank pellet burst: shreds anything close [skill]', 'SC', 1], ['Siphon Beam', 'drain your target and heal yourself [skill]', 'SB', 1],
-  ['Sentry Turret', 'deploy an auto-turret that guards the spot [skill]', 'ST', 1], ['Chrono Shift', 'rewind to where you were 3 s ago, recover hull [skill]', 'CS', 1],
+  ['Sentry Turret', 'deploy an auto-turret that guards the spot [skill]', 'ST', 1], ['Chrono Shift', 'rewind to where you were 4 s ago, recover hull [skill]', 'CS', 1],
 ];
 // Specialisations: once a part reaches level 3 you may pick ONE of two branches (offered as cards with id 100 + part*2 + variant)
 const BR = [
   [['Reactive Plating', 'reflects 15% of damage taken'], ['Fortress Hull', '+260 hull, slightly slower']],
-  [['Overcharge', '+40% damage, bigger focus ramp'], ['Chain Arc', 'beam arcs to up to 3 more foes']],
+  [['Overcharge', '+20% damage, bigger focus ramp'], ['Chain Arc', 'beam arcs to up to 3 more foes']],
   [['Bastion Shield', '+60% shield, regen starts sooner'], ['Nova Shield', 'a broken shield stuns nearby foes']],
   [['Ion Drive', '+20% speed, +25% acceleration'], ['Evasion Matrix', '12% chance to dodge any hit']],
   [['Nano Swarm', 'heals nearby allies & escorts'], ['Last Stand', 'survive a killing blow (once / 60 s)']],
-  [['Cluster Salvo', '+4 missiles, weaker each'], ['Heavy Seekers', '2 missiles, 2.6x damage']],
+  [['Cluster Salvo', '+3 missiles, weaker each'], ['Heavy Seekers', '2 missiles, 2.3x damage']],
   [['Plasma Torpedo', 'bigger blast, +40% damage'], ['Cluster Torpedo', 'splits into 4 bomblets']],
-  [['Swarm', '+6 drones, weaker each'], ['Sapper Drones', 'drones stun what they hit']],
+  [['Swarm', '+5 drones, weaker each'], ['Sapper Drones', 'drones stun what they hit']],
   [['Minefield', '+5 mines, lasts longer'], ['EMP Mines', 'mines stun instead of slow']],
   [['Ram Plating', 'dash hits 2x harder, bigger knockback'], ['Blink Drive', 'dash teleports you forward']],
   null,
-  [['Singularity', 'collapse hits harder, stuns longer'], ['Repulsor Well', 'pushes foes away instead']],
+  [['Singularity', 'collapse hits harder, stuns longer'], ['Repulsor Well', 'pushes foes away + a harder blast']],
   [['Supernova', 'bigger, stronger pulse'], ['Disruptor', 'pulse strips enemy shields']],
   [['Ambush', '+40% damage after you decloak'], ['Long Shroud', 'double duration, faster']],
-  [['Berserk', '+60% damage, take +25%'], ['Warp Core', 'cooldowns tick twice as fast']],
+  [['Berserk', '+75% damage, take +15%'], ['Warp Core', 'cooldowns tick twice as fast']],
   [['Mirror Aegis', 'reflects shots back at foes'], ['Bulwark', 'huge bubble covers allies']],
-  [['Resupply Field', 'also restores shields'], ['Toxic Field', 'burns enemies instead']],
-  [['Tempest', '3 more targets, longer reach'], ['Overload', 'one target: huge damage + stun']],
+  [['Resupply Field', 'also restores shields'], ['Toxic Field', 'burns + slows enemies, bigger']],
+  [['Tempest', '3 more targets, longer reach'], ['Overload', 'one target: heavy damage + stun']],
   [['Strike Wing', 'summons 3 gunships'], ['Heavy Cruiser', 'summons a tough frigate']],
   [['Slug Thrower', 'one heavy slug: hits hard from range'], ['Shredder', '+5 pellets, wide cone, slows + shoves']],
   [['Vampiric Link', 'heals 100%, overheal becomes shield'], ['Entangling Link', 'slows the target, +25% range']],
   [['Missile Battery', 'turret fires homing missiles from afar'], ['Tesla Tower', 'turret chains lightning through 3 foes']],
-  [['Echo Burst', 'stunning blast where you vanished'], ['Deep Rewind', 'go back 6 s, recover more hull']],
+  [['Echo Burst', 'stunning blast where you vanished'], ['Deep Rewind', 'go back 7 s, recover more hull']],
 ];
 // Fleet ships: stranded ships you rescue, mercenaries you hire at outposts, reinforcements you summon
 const ECLS = [
@@ -66,7 +66,13 @@ const DIFF = {
   hard:   { err: 0.05, react: 0.12, turn: 12, lead: 1, spd: 1,    aggr: 0.9 },
 };
 const PRIO = { easy: [], normal: [SHD, LAS, ARM, MIS, ENG, TOR, REP, RAIL, ARC, FLT, NAN, GRV, DRN, MIN, PUL, DSH, AEG, OD, CLK, SCT, SIP, TUR, CHR], hard: [LAS, SHD, RAIL, MIS, ARM, ARC, TOR, ENG, REP, FLT, OD, GRV, NAN, DRN, MIN, PUL, AEG, DSH, CLK, SCT, SIP, TUR, CHR] };
+function botPrio(diff) {   // upgrade wish-list: solid core first, a random skill taste woven in
+  const core = diff === 'hard' ? [LAS, SHD, ARM, ENG, REP] : [SHD, LAS, ARM, ENG, REP];
+  const act = [MIS, TOR, DRN, MIN, DSH, GRV, PUL, CLK, OD, AEG, NAN, ARC, FLT, SCT, SIP, TUR, CHR].sort(() => Math.random() - 0.5);
+  return [core[0], core[1], act[0], core[2], act[1], core[3], act[2], core[4], ...act.slice(3)];
+}
 const LASER_RANGE = 430;
+const LDPS = [9, 14, 21, 30];   // base beam damage per second by Lasers level (each level is worth about +55%); focus ramp / overcharge / overdrive multiply it
 
 const rid = () => Math.random().toString(36).slice(2, 10);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -87,8 +93,8 @@ const stats = s => {
   return { acc: (480 + 80 * e) * (ion ? 1.25 : 1) * f, vmax: (230 + 35 * e) * (ion ? 1.2 : 1) * f, turn: 4 + 1.5 * e };
 };
 const HN = n => n.type <= 4 || n.type >= 8;   // hostile neutral: scouts, haulers, boss, sentries, warships, raiders, dreadnought
-const cdMax = (lv, p) => [0, 0, 0, 0, 0, 5 - 0.4 * lv[MIS], 7 - 0.8 * lv[TOR], 13 - 1.6 * lv[DRN], 9.5 - 0.8 * lv[MIN], 4.5 - 0.5 * lv[DSH], 6.5 - 0.8 * lv[RAIL], 15 - 1.6 * lv[GRV], 8 - 0.8 * lv[PUL],
-  17 - 2 * lv[CLK], 18 - 2 * lv[OD], 16 - 2 * lv[AEG], 15 - 1.5 * lv[NAN], 8 - 0.9 * lv[ARC], 30 - 3 * lv[FLT], 8 - 0.8 * lv[SCT], 14 - 1.5 * lv[SIP], 20 - 2 * lv[TUR], 24 - 3 * lv[CHR]][p];
+const cdMax = (lv, p) => [0, 0, 0, 0, 0, 6 - 0.4 * lv[MIS], 7 - 0.9 * lv[TOR], 13 - 1.6 * lv[DRN], 9.5 - 0.8 * lv[MIN], 4 - 0.5 * lv[DSH], 6.5 - 0.8 * lv[RAIL], 15 - 1.6 * lv[GRV], 8 - 0.8 * lv[PUL],
+  15 - 2 * lv[CLK], 17 - 2 * lv[OD], 16 - 2 * lv[AEG], 15 - 1.5 * lv[NAN], 8 - 0.9 * lv[ARC], 30 - 3 * lv[FLT], 7 - 0.8 * lv[SCT], 15 - 1.2 * lv[SIP], 20 - 2 * lv[TUR], 21 - 3 * lv[CHR]][p];
 const isLive = t => t && !t.dead && t.alive !== false && (t.hp == null || t.hp > 0);
 const isShip = t => t && t.lv != null;
 let GMUL = 1;
@@ -148,7 +154,7 @@ const RELC = ['#ffffff', '#5ee07a', '#ff5a5a'];   // me / ally / enemy
 const FL = s => (s.fl != null ? s.fl : flagsOf(s));   // ship status bits: 1 cloaked, 2 aegis, 4 overdrive, 8 ambush
 const myFac = () => { const i = S.host ? (G ? G.me : -1) : (C ? C.me : -1); return PL[i] ? PL[i].fac : -1; };
 const fieldFac = f => (f.fac != null ? f.fac : (PL[f.o] ? PL[f.o].fac : 0));
-let AIMING = null, AIMV = [null, null, null], CUR = null; const TELE = [], BEAMS = [], SIPS = [];
+let AIMING = null, AIMV = [null, null, null], CUR = null; const TELE = [], BEAMS = [], SIPS = [], DMGN = [];
 let FIRE = {}, HIT = {}, THR = {}, PB = {}, FDT = 0.016, FZ = 1, TT = 0; const SHA = [];
 let G = null, C = null, PL = [], simTimer = null, inputTimer = null, MODE = 'teams', COND = 'last', LEN = 'normal';
 const FC = f => (MODE === 'teams' ? TC[f] : PC8[f]);
@@ -196,6 +202,7 @@ const HOW = [
   ['🕹️', 'Fly', 'Touch and drag on the <b>left half</b> of the screen to steer. A joystick appears under your thumb. On a PC use <b>WASD</b>.<br>Your lasers <b>fire automatically</b> at anything in range.'],
   ['🎯', 'Pick a target', 'Enemies have a <b>red ring</b>, allies a <b>green ring</b>. <b>Tap an enemy</b> to lock it. Lasers, missiles, torpedoes and the railgun aim at your locked target.'],
   ['⚡', 'Use skills', 'The <b>round buttons</b> on the right fire your special weapons. Tap to fire, or <b>drag from a button to aim</b> and let go to cast. On a PC use <b>Space / Q / E</b>.<br>Skills unlock as you pick upgrades.'],
+  ['🧰', 'Pick a playstyle', '17 skills, 3 slots. <b>Hit hard:</b> Missiles, Torpedo, Drones, Mines, Scatter Cannon, Arc Storm, Gravity Bomb. <b>Control:</b> Shockwave, Siphon Beam, Sentry Turret. <b>Survive:</b> Aegis, Repair Field, Cloak, Chrono Shift, Afterburner. <b>Support:</b> Overdrive, Reinforcements.<br>Max a part to level 3 and it can <b>specialise</b> into one of two branches.'],
   ['⬆️', 'Level up', 'Fly through <b>scrap</b> and wreckage to earn upgrades. When cards appear at the top, <b>tap one</b> (or press 1 / 2 / 3). Pick armor, shields, engines or new weapons.'],
   ['🏆', 'Win the match', '<b>Score mode</b> (default): every kill scores points, holding <b>beacons</b> trickles more, and you <b>respawn</b> a few seconds after dying. First to the target score, or the leader when time runs out, wins.<br>Other modes: last ship standing inside the <b>shrinking storm</b>, or capture points.'],
   ['🛰️', 'Build a fleet', '<b>Rescue</b> stranded ships (hold still next to an SOS), <b>hire</b> mercenaries at gold <b>outposts</b> with scrap, or call <b>reinforcements</b>. Gunships, frigates, medics, artillery and carriers follow and fight for you.'],
@@ -330,7 +337,7 @@ function startGame(L) {
   R = { fx: [], log: [], cam: null, spec: 0, lock: 0 }; FIRE = {}; HIT = {}; THR = {}; PB = {};
   if (ART2) { try { Art2.fx.clear(); } catch (e) {} }
   clearInterval(simTimer); clearInterval(inputTimer);
-  myTg = ''; GMUL = 1; GSTART = performance.now(); if (QFORCE != null) setQual(+QFORCE);
+  myTg = ''; GMUL = 1; TRAILS.length = 0; SIPS.length = 0; DCAM = null; GSTART = performance.now(); setQual(QUAL);
   if (S.host) { newGame(L); simTimer = setInterval(hostTick, 33); }
   else { C = { me: PL.findIndex(p => p.id === S.id), snaps: [], pred: null, over: false }; inputTimer = setInterval(sendInput, 50); }
   S.mode = 'game'; panel(''); if (window.SFX) SFX.play('go');
@@ -348,7 +355,7 @@ function newGame(L) {
     evPub: [], evLoc: [], logPub: [], logLoc: [], nid: 1, spawnT: 0, dropT: ZONE_T0, boss: false, bhs: Math.random() < 0.5 ? 1 : -1, shower: 0, surge: 0, ion: null, showerT: 0,
     score: Array(MODE === 'teams' ? 2 : L.players.length).fill(0), fields: [], haz: [], flare: 0, evQ: [], lastEv: '', rogue: 0, dread: false };
   G.lenF = LEN === 'quick' ? 0.55 : 1; G.dropT = ZONE_T0 * G.lenF; G.relics = [85, 175, 265, 355, 445].map(t => ({ t: t * G.lenF })); G.cometT = 30 * G.lenF; G.sosT = 0; G.warT = 0;
-  G.evT = 38 * G.lenF; G.bossAt = 110 * G.lenF; G.dreadAt = 170 * G.lenF; G.target = Math.round(90 * G.lenF); G.tlim = 480 * G.lenF;
+  G.evT = 38 * G.lenF; G.bossAt = 110 * G.lenF; G.dreadAt = 170 * G.lenF; G.target = Math.round(70 * G.lenF); G.tlim = 480 * G.lenF;
   const np = L.players.length, cnt = [0, 0], tot = [teamCount(L, 0), teamCount(L, 1)];
   L.players.forEach((p, i) => {
     const t = p.team, k = cnt[t]++, side = t ? 1 : -1, ra = i / np * Math.PI * 2;
@@ -441,9 +448,9 @@ function hazard() {   // radiation cloud: burns anything inside, but hides a ric
 }
 const fleetCap = s => 2 + Math.floor(s.level / 4);
 const fleetN = i => G.neut.filter(m => m.type === 6 && m.ow === i && !m.dead && m.ttl == null).length;
-function addEscort(s, cls, ttl, hpMul) {
+function addEscort(s, cls, ttl, hpMul, dmx) {
   const C = ECLS[cls], hp = C.hp * (1 + 0.04 * s.level) * (hpMul || 1);
-  G.neut.push({ id: G.nid++, type: 6, cls, x: s.x + rnd(-50, 50), y: s.y + rnd(-50, 50), vx: 0, vy: 0, ang: s.ang, hp, hpMax: hp, gx: s.x, gy: s.y, shT: rnd(0, 1), rad: C.rad, by: -1, ow: s.i, res: 0, ttl });
+  G.neut.push({ id: G.nid++, type: 6, cls, x: s.x + rnd(-50, 50), y: s.y + rnd(-50, 50), vx: 0, vy: 0, ang: s.ang, hp, hpMax: hp, gx: s.x, gy: s.y, shT: rnd(0, 1), rad: C.rad, by: -1, ow: s.i, res: 0, ttl, dmx });
   ev('w', s.x, s.y);
 }
 function addScore(f, pts) { if (G.cond === 'score' && f >= 0 && f < G.score.length) G.score[f] += pts; }
@@ -484,7 +491,7 @@ function hurt(s, dmg, by, x, y) {
   s.lastHit = G.t; s.cloak = 0;
   dmg *= (s.emp > 0 ? 1.35 : 1) * (s.slow > 0 ? 1.15 : 1);   // combo window: stunned +35%, slowed +15%
   if (s.aegis > 0) dmg *= 0.6;
-  if (s.od > 0 && BRN(s, OD) === 1) dmg *= 1.25;
+  if (s.od > 0 && BRN(s, OD) === 1) dmg *= 1.15;
   if (s.sh > 0) {
     const a = Math.min(s.sh, dmg); s.sh -= a; dmg -= a; ev('s', x, y, Math.round(a));
     if (s.sh <= 0 && BRN(s, SHD) === 2 && G.t >= s.novaT) {   // Nova Shield: the broken shield bursts and stuns what is near
@@ -499,7 +506,7 @@ function hurt(s, dmg, by, x, y) {
   }
   s.hp -= dmg; ev('h', x, y, Math.round(dmg));
   if (s.hp <= 0) {
-    if (BRN(s, REP) === 2 && G.t >= s.lsT) { s.lsT = G.t + 60; s.hp = s.hpMax * 0.25; s.inv = 2; ev('w', s.x, s.y); logMsg(G.players[s.i].name + ' survived with Last Stand!'); return; }
+    if (BRN(s, REP) === 2 && G.t >= s.lsT) { s.lsT = G.t + 60; s.hp = s.hpMax * 0.35; s.inv = 2.5; ev('w', s.x, s.y); logMsg(G.players[s.i].name + ' survived with Last Stand!'); return; }
     killShip(s, by);
   }
 }
@@ -519,7 +526,7 @@ function killShip(s, by) {
   else logMsg(`${G.players[s.i].name} was lost to the void`);
 }
 function collapseWell(w) {   // end of a gravity bomb: stun + damage everything still inside
-  const lvl = w.lvl || 1, cr = 170 + 15 * lvl, ot = teamOf(w.o), dm = (25 + 8 * lvl) * (w.br === 1 ? 1.8 : 1), stun = Math.max(0, 0.7 + 0.15 * lvl + (w.br === 1 ? 0.6 : w.br === 2 ? -0.7 : 0));
+  const lvl = w.lvl || 1, cr = 170 + 15 * lvl, ot = teamOf(w.o), dm = (22 + 7 * lvl) * (w.br === 1 ? 1.8 : w.br === 2 ? 2.2 : 1), stun = Math.max(0, 0.7 + 0.15 * lvl + (w.br === 1 ? 0.6 : w.br === 2 ? -0.2 : 0));
   ev('k', w.x, w.y, cr);
   for (const sh of G.ships) if (sh.alive && teamOf(sh.i) !== ot && Math.hypot(sh.x - w.x, sh.y - w.y) < cr + sh.rad) {
     sh.emp = Math.max(sh.emp, stun); hurt(sh, dm, w.o, sh.x, sh.y);
@@ -625,12 +632,17 @@ function fireBeam(sh, t, dmg, owner, evId) {
 }
 function arcStorm(s, lv, b) {   // instant chain lightning on the nearest foes (Tempest: more, farther; Overload: one big stunning hit)
   const rng = b === 1 ? 640 : 480, foes = targetsFor(s.i).filter(o => dist(o, s) < rng + (o.rad || 0)).sort((x, y) => dist(x, s) - dist(y, s));
-  const n = b === 2 ? 1 : 3 + lv + (b === 1 ? 3 : 0), dm = (30 + 10 * lv) * (b === 2 ? 3 : 1);
+  const n = b === 2 ? 1 : 3 + lv + (b === 1 ? 3 : 0), dm = (30 + 10 * lv) * (b === 2 ? 1.5 : 1);
   ev('k', s.x, s.y, 90);
   for (const o of foes.slice(0, n)) {
     ev('A', o.x, o.y, s.i);
-    if (isShip(o)) { o.emp = Math.max(o.emp, b === 2 ? 1.1 : 0.5); hurt(o, dm, s.i, o.x, o.y); } else hurtNeut(o, dm, o.x, o.y, s.i);
+    if (isShip(o)) { o.emp = Math.max(o.emp, b === 2 ? 0.6 : 0.5); hurt(o, dm, s.i, o.x, o.y); } else hurtNeut(o, dm, o.x, o.y, s.i);
   }
+}
+function leadAng(s, t, sp) {   // aim at where a moving target will be when a shot of speed sp arrives
+  let px = t.x, py = t.y;
+  if (t.vx != null) for (let k = 0; k < 2; k++) { const tm = Math.hypot(px - s.x, py - s.y) / sp; px = t.x + t.vx * tm * 0.85; py = t.y + t.vy * tm * 0.85; }
+  return Math.atan2(py - s.y, px - s.x);
 }
 function updateShip(s, dt) {
   const st = stats(s), I = s.in, L = k => eff(s, k);
@@ -640,7 +652,7 @@ function updateShip(s, dt) {
   if (s.cloak > 0) { s.cloak -= dt; if (s.cloak <= 0) { s.cloak = 0; if (BRN(s, CLK) === 1) s.amb = 4; ev('w', s.x, s.y); } }
   if (s.phase > 0 && s.ram) for (const o of G.ships) {
     if (!o.alive || teamOf(o.i) === teamOf(s.i) || s.ram.has(o.i)) continue;
-    if (Math.hypot(o.x - s.x, o.y - s.y) < s.rad + o.rad + 8) { s.ram.add(o.i); hurt(o, (25 + 10 * (s.dashLv || 1)) * (s.dashA ? 2.2 : 1), s.i, o.x, o.y); o.emp = Math.max(o.emp, 0.5); const d = dist(o, s) || 1; o.vx += (o.x - s.x) / d * (s.dashA ? 700 : 350); o.vy += (o.y - s.y) / d * (s.dashA ? 700 : 350); ev('x', (o.x + s.x) / 2, (o.y + s.y) / 2, 40); }
+    if (Math.hypot(o.x - s.x, o.y - s.y) < s.rad + o.rad + 8) { s.ram.add(o.i); hurt(o, (36 + 15 * (s.dashLv || 1)) * (s.dashA ? 2.2 : 1), s.i, o.x, o.y); o.emp = Math.max(o.emp, 0.5); const d = dist(o, s) || 1; o.vx += (o.x - s.x) / d * (s.dashA ? 700 : 350); o.vy += (o.y - s.y) / d * (s.dashA ? 700 : 350); ev('x', (o.x + s.x) / 2, (o.y + s.y) / 2, 40); }
   } s.portalT -= dt; s.fireT -= dt;
   const cdk = s.od > 0 && BRN(s, OD) === 2 ? 2 : 1;
   for (let p = 0; p < NP; p++) s.cd[p] = Math.max(0, s.cd[p] - dt * cdk);
@@ -709,8 +721,8 @@ function updateShip(s, dt) {
     const l = L(LAS), n = 1 + (l >= 2 ? 1 : 0) + (l >= 3 ? 1 : 0); s.fireT = 0.1;
     if (s.fTg !== t) { s.fTg = t; s.fT = 0; }   // focus: staying on one target ramps the beam up to +80% over 3 s
     s.fT = Math.min(3, (s.fT || 0) + s.bAcc);
-    const lb = BRN(s, LAS), dm = (lb === 1 ? 1.4 : 1) * (s.od > 0 ? (BRN(s, OD) === 1 ? 1.6 : 1.3) : 1) * (s.amb > 0 ? 1.4 : 1);
-    const dmgTick = n * (5 + 1.5 * l) / (0.55 - 0.03 * l) * Math.max(0.05, s.bAcc) * (1 + (lb === 1 ? 1.6 : 0.8) * s.fT / 3) * dm;
+    const lb = BRN(s, LAS), dm = (lb === 1 ? 1.2 : 1) * (s.od > 0 ? (BRN(s, OD) === 1 ? 1.75 : 1.35) : 1) * (s.amb > 0 ? 1.4 : 1);
+    const dmgTick = LDPS[l] * Math.max(0.05, s.bAcc) * (1 + (lb === 1 ? 1.1 : 0.8) * s.fT / 3) * dm;
     fireBeam(s, t, dmgTick, s.i, s.i); s.bAcc = 0;
     if (l >= 2) {   // arc to a second enemy near the target (Chain Arc: up to 3 more)
       const arcs = enemyShips(s).filter(o => o !== t && dist(o, t) < 170 + 30 * l).sort((a, b) => dist(a, t) - dist(b, t)).slice(0, lb === 2 ? 3 : 1);
@@ -724,17 +736,17 @@ function updateShip(s, dt) {
     if (p < 0 || !I['s' + j] || s.cd[p] > 0 || !L(p)) continue;
     s.cd[p] = cdMax(s.lv, p);
     const lv = L(p), ta = t ? Math.atan2(t.y - s.y, t.x - s.x) : s.ang;
-    const am = I.sa && I.sa[j] ? I.sa[j] : null, aa = am ? am[0] : null, pw = am ? am[1] : 0;   // player-aimed direction + power (drag length)
-    const ang0 = aa != null ? aa : ta;
+    const am = I.sa && I.sa[j] ? I.sa[j] : null, aa = am ? am[0] : null, pw = am ? am[1] : 0, tl0 = t ? leadAng(s, t, p === TOR ? 360 : 700) : s.ang;   // player-aimed direction + power (drag length)
+    const ang0 = aa != null ? aa : (p === TOR || p === SCT) ? tl0 : ta;
     const bp = BRN(s, p);
-    if (p === MIS) { const mn = bp === 2 ? 2 : 2 + lv + (bp === 1 ? 4 : 0), md = (18 + 4 * lv) * (bp === 1 ? 0.65 : bp === 2 ? 2.6 : 1); for (let k = 0; k < mn; k++) spawnProj(2, s.i, s.x, s.y, ang0 + (k - (mn - 1) / 2) * 0.3, 340, 3.5, md, { tg: aa != null ? null : t, turn: bp === 2 ? 4 : 3.2, sp: 340 }); }
-    else if (p === DRN) { const dn = 4 + 2 * lv + (bp === 1 ? 6 : 0); for (let k = 0; k < dn; k++) spawnProj(3, s.i, s.x, s.y, aa != null ? aa + rnd(-0.7, 0.7) : rnd(0, 6.28), 230, 10, (9 + 2 * lv) * (bp === 1 ? 0.75 : 1), { turn: 5, sp: 230, emp: bp === 2 ? 0.7 : 0 }); }
-    else if (p === TOR) spawnProj(4, s.i, s.x + Math.cos(ang0) * s.rad, s.y + Math.sin(ang0) * s.rad, ang0, 300, 2.2, (55 + 15 * lv) * (bp === 1 ? 1.4 : 1), { rad: (75 + 15 * lv) * (bp === 1 ? 1.6 : 1), cl: bp === 2 ? 1 : 0 });
+    if (p === MIS) { const mn = bp === 2 ? 2 : 1 + lv + (bp === 1 ? 3 : 0), md = (12 + 3 * lv) * (bp === 1 ? 0.65 : bp === 2 ? 2.3 : 1); for (let k = 0; k < mn; k++) spawnProj(2, s.i, s.x, s.y, ang0 + (k - (mn - 1) / 2) * 0.3, 340, 3.5, md, { tg: aa != null ? null : t, turn: bp === 2 ? 4 : 3.2, sp: 340 }); }
+    else if (p === DRN) { const dn = 4 + 1.5 * lv + (bp === 1 ? 5 : 0) | 0; for (let k = 0; k < dn; k++) spawnProj(3, s.i, s.x, s.y, aa != null ? aa + rnd(-0.7, 0.7) : rnd(0, 6.28), 230, 10, (8 + 2 * lv) * (bp === 1 ? 0.75 : 1), { turn: 5, sp: 230, emp: bp === 2 ? 0.4 : 0 }); }
+    else if (p === TOR) spawnProj(4, s.i, s.x + Math.cos(ang0) * s.rad, s.y + Math.sin(ang0) * s.rad, ang0, 360, 1.9, (60 + 18 * lv) * (bp === 1 ? 1.4 : 1), { rad: (85 + 18 * lv) * (bp === 1 ? 1.6 : 1), cl: bp === 2 ? 1 : 0 });
     else if (p === MIN) {
       const own = G.mines.filter(m => m.o === s.i); if (own.length >= 2) G.mines.splice(G.mines.indexOf(own[0]), 1);
       const bm = BRN(s, MIN), r = 90 + 15 * lv, dd = aa != null ? 80 + pw * 370 : s.rad + r * 0.7, da = aa != null ? aa : (Math.hypot(s.vx, s.vy) > 30 ? Math.atan2(-s.vy, -s.vx) : s.ang + Math.PI);   // behind your MOVEMENT, not your facing (you face your target while locked)
-      G.mines.push({ id: G.nid++, x: s.x + Math.cos(da) * dd, y: s.y + Math.sin(da) * dd, vx: s.vx * 0.3, vy: s.vy * 0.3, o: s.i, r, life: bm === 1 ? 18 : 12, arm: 1, dmg: 28 + 8 * lv, emp: bm === 2 ? 1 : 0,
-        ms: Array.from({ length: 5 + 2 * lv + (bm === 1 ? 5 : 0) }, () => { const a = rnd(0, 6.28), rr = Math.sqrt(Math.random()) * r; return [Math.cos(a) * rr, Math.sin(a) * rr]; }) });
+      G.mines.push({ id: G.nid++, x: s.x + Math.cos(da) * dd, y: s.y + Math.sin(da) * dd, vx: s.vx * 0.3, vy: s.vy * 0.3, o: s.i, r, life: bm === 1 ? 18 : 12, arm: 1, dmg: 28 + 10 * lv, emp: bm === 2 ? 1 : 0,
+        ms: Array.from({ length: 5 + 3 * lv + (bm === 1 ? 5 : 0) }, () => { const a = rnd(0, 6.28), rr = Math.sqrt(Math.random()) * r; return [Math.cos(a) * rr, Math.sin(a) * rr]; }) });
     } else if (p === DSH) {
       const da = aa != null ? aa : (ml > 0.05 ? Math.atan2(my, mx) : s.ang);
       if (bp === 2) { ev('w', s.x, s.y); s.x += Math.cos(da) * 480; s.y += Math.sin(da) * 480; s.phase = 0.5; s.ram = null; const dc2 = Math.hypot(s.x, s.y); if (dc2 > R0 + 100) { s.x *= (R0 + 100) / dc2; s.y *= (R0 + 100) / dc2; } ev('w', s.x, s.y); }
@@ -746,28 +758,28 @@ function updateShip(s, dt) {
       G.wells.push({ type: 1, x: at.x, y: at.y, r: 30, gr: 300, g: bp === 2 ? -380 : 400, life: 4.5, o: s.i, lvl: lv, br: bp }); ev('w', at.x, at.y);
     }
     else if (p === PUL) {
-      const pr = bp === 1 ? 380 : 260, pd = (20 + 8 * lv) * (bp === 1 ? 1.6 : 1);
+      const pr = bp === 1 ? 400 : 215 + 25 * lv, pd = (40 + 18 * lv) * (bp === 1 ? 1.6 : 1), pst = 0.7 + 0.15 * lv;
       ev('k', s.x, s.y, pr);
-      for (const o of G.ships) { if (!o.alive || teamOf(o.i) === teamOf(s.i)) continue; const d = dist(o, s); if (d < pr + o.rad && d > 0) { o.vx += (o.x - s.x) / d * 520; o.vy += (o.y - s.y) / d * 520; o.emp = Math.max(o.emp, 0.9); o.slow = Math.max(o.slow || 0, 2.5); if (bp === 2) { o.sh = 0; o.lastHit = G.t; } hurt(o, pd, s.i, o.x, o.y); } }
+      for (const o of G.ships) { if (!o.alive || teamOf(o.i) === teamOf(s.i)) continue; const d = dist(o, s); if (d < pr + o.rad && d > 0) { o.vx += (o.x - s.x) / d * 520; o.vy += (o.y - s.y) / d * 520; o.emp = Math.max(o.emp, pst); o.slow = Math.max(o.slow || 0, 2.5); if (bp === 2) { o.sh = 0; o.lastHit = G.t; } hurt(o, pd, s.i, o.x, o.y); } }
       for (const n of G.neut) if (!n.dead && HN(n) && dist(n, s) < pr + n.rad) hurtNeut(n, pd, n.x, n.y, s.i);
       for (let k = G.proj.length - 1; k >= 0; k--) { const q = G.proj[k]; if (q.o !== s.i && (q.k === 1 || q.k === 2 || q.k === 3 || q.k === 5) && dist(q, s) < pr - 40 && (q.o < 0 || teamOf(q.o) !== teamOf(s.i))) G.proj.splice(k, 1); }
     }
-    else if (p === CLK) { s.cloak = (3 + lv) * (bp === 2 ? 2 : 1); s.amb = 0; ev('w', s.x, s.y); }
+    else if (p === CLK) { s.cloak = (3.5 + lv) * (bp === 2 ? 2 : 1); s.amb = 0; ev('w', s.x, s.y); }
     else if (p === OD) { s.od = 6 + lv; ev('w', s.x, s.y); }
     else if (p === AEG) { s.aegis = 3.5 + lv; ev('k', s.x, s.y, 120); }
     else if (p === NAN) {
       const old = G.fields.findIndex(f => f.o === s.i); if (old >= 0) G.fields.splice(old, 1);
-      G.fields.push({ x: s.x, y: s.y, r: 230, life: 6, max: 6, o: s.i, k: bp === 2 ? 1 : 0, br: bp, lvl: lv }); ev('w', s.x, s.y);
+      G.fields.push({ x: s.x, y: s.y, r: bp === 2 ? 290 : 230, life: 6, max: 6, o: s.i, k: bp === 2 ? 1 : 0, br: bp, lvl: lv }); ev('w', s.x, s.y);
     }
     else if (p === ARC) arcStorm(s, lv, bp);
     else if (p === SCT) {   // point-blank pellet burst (Slug Thrower: one heavy slug; Shredder: wider, slows and shoves)
-      const nP = 7 + 2 * lv + (bp === 2 ? 5 : 0), dP = 9 + 2 * lv, spread = bp === 2 ? 1.5 : 0.9;
-      if (bp === 1) spawnProj(1, s.i, s.x + Math.cos(ang0) * s.rad, s.y + Math.sin(ang0) * s.rad, ang0, 1000, 0.6, nP * dP * 0.75, { pr: 8, kb: 300 });
+      const nP = 8 + 3 * lv + (bp === 2 ? 5 : 0), dP = 12 + 3 * lv, spread = bp === 2 ? 0.85 : 0.6;
+      if (bp === 1) spawnProj(1, s.i, s.x + Math.cos(ang0) * s.rad, s.y + Math.sin(ang0) * s.rad, ang0, 1000, 0.6, nP * dP * 0.42, { pr: 8, kb: 300 });
       else for (let k = 0; k < nP; k++) spawnProj(1, s.i, s.x + Math.cos(ang0) * s.rad, s.y + Math.sin(ang0) * s.rad, ang0 + (nP > 1 ? k / (nP - 1) - 0.5 : 0) * spread + rnd(-0.05, 0.05), rnd(640, 780), rnd(0.4, 0.48), dP, { kb: bp === 2 ? 170 : 40, slow: bp === 2 ? 1.3 : 0 });
       ev('B', s.x, s.y, Math.round(ang0 * 100)); s.vx -= Math.cos(ang0) * 90; s.vy -= Math.sin(ang0) * 90;
     }
     else if (p === SIP) {   // channel a drain on the current target (needs a ship / hostile in range)
-      if (t && (isShip(t) || t.type != null) && dist(s, t) < (bp === 2 ? 700 : 560) + (t.rad || 0)) { s.sip = { tgt: t, t: 2.5 + 0.5 * lv, lv, br: bp, tk: 0 }; ev('w', s.x, s.y); }
+      if (t && (isShip(t) || t.type != null) && dist(s, t) < (bp === 2 ? 700 : 560) + (t.rad || 0)) { s.sip = { tgt: t, t: 2.5 + 0.4 * lv, lv, br: bp, tk: 0 }; ev('w', s.x, s.y); }
       else s.cd[p] = 0.6;
     }
     else if (p === TUR) {   // deploy a stationary auto-turret (one at a time)
@@ -778,7 +790,7 @@ function updateShip(s, dt) {
       ev('w', x, y);
     }
     else if (p === CHR) {   // rewind to the position you held 3 s ago (6 s with Deep Rewind), recover hull, cleanse, brief invulnerability
-      const want = G.t - (bp === 2 ? 6 : 3), h = s.hist || []; let e = null;
+      const want = G.t - (bp === 2 ? 7 : 4), h = s.hist || []; let e = null;
       for (const q of h) if (q.t <= G.t - 1 && (!e || Math.abs(q.t - want) < Math.abs(e.t - want))) e = q;
       if (!e) s.cd[p] = 1;
       else {
@@ -787,13 +799,13 @@ function updateShip(s, dt) {
           const er = 210; ev('k', s.x, s.y, er);
           for (const o of G.ships) if (o.alive && teamOf(o.i) !== teamOf(s.i) && dist(o, s) < er + o.rad) { o.emp = Math.max(o.emp, 0.7); hurt(o, 18 + 8 * lv, s.i, o.x, o.y); }
         }
-        const cap = s.hpMax * (0.16 + 0.07 * lv + (bp === 2 ? 0.2 : 0));
+        const cap = s.hpMax * (0.24 + 0.08 * lv + (bp === 2 ? 0.2 : 0));
         s.x = e.x; s.y = e.y; s.vx = s.vy = 0; s.emp = 0; s.slow = 0; s.phase = 0.6; s.portalT = 1; s.sip = null;
         s.hp = Math.min(s.hpMax, Math.max(s.hp, Math.min(e.hp, s.hp + cap))); s.hist = [];
         ev('w', s.x, s.y);
       }
     }
-    else if (p === FLT) { if (bp === 1) for (let k = 0; k < 3; k++) addEscort(s, 0, 25); else if (bp === 2) addEscort(s, 1, 40, 1.5); else { addEscort(s, 0, 25); addEscort(s, 0, 25); } logMsg(`${G.players[s.i].name} called reinforcements!`); }
+    else if (p === FLT) { if (bp === 1) for (let k = 0; k < 3; k++) addEscort(s, 0, 25); else if (bp === 2) addEscort(s, 1, 40, 1.5, 5); else { addEscort(s, 0, 25); addEscort(s, 0, 25); } logMsg(`${G.players[s.i].name} called reinforcements!`); }
   }
 }
 function siphonTick(s, dt) {   // Siphon Beam: every 0.25 s drain the target and heal (Vampiric: 100% + shield overflow; Entangling: slow, longer tether)
@@ -801,9 +813,9 @@ function siphonTick(s, dt) {   // Siphon Beam: every 0.25 s drain the target and
   if (!ok || s.emp > 0 || (q.t -= dt) <= 0 || dist(s, t) > (q.br === 2 ? 820 : 640) + (t.rad || 0) || segBlock(s.x, s.y, t.x, t.y, t)) { s.sip = null; return; }
   if ((q.tk -= dt) > 0) return;
   q.tk = 0.25;
-  const dmg = (22 + 7 * q.lv) * 0.25 * (s.od > 0 ? 1.3 : 1), before = t.hp + (t.sh || 0);
-  if (isShip(t)) { hurt(t, dmg, s.i, t.x, t.y); if (q.br === 2) t.slow = Math.max(t.slow || 0, 0.5); } else hurtNeut(t, dmg, t.x, t.y, s.i);
-  const dealt = Math.max(0, before - Math.max(0, t.hp) - (t.sh || 0)), heal = dealt * (q.br === 1 ? 1 : q.br === 2 ? 0.5 : 0.7);
+  const dmg = (16 + 4 * q.lv) * 0.25 * (s.od > 0 ? 1.3 : 1), before = t.hp + (t.sh || 0);
+  if (isShip(t)) { hurt(t, dmg, s.i, t.x, t.y); if (q.br === 2) t.slow = Math.max(t.slow || 0, 0.35); } else hurtNeut(t, dmg, t.x, t.y, s.i);
+  const dealt = Math.max(0, before - Math.max(0, t.hp) - (t.sh || 0)), heal = dealt * (q.br === 1 ? 0.75 : q.br === 2 ? 0.4 : 0.55);
   const over = Math.max(0, s.hp + heal - s.hpMax); s.hp = Math.min(s.hpMax, s.hp + heal);
   if (q.br === 1 && over > 0 && s.shMax > 0) s.sh = Math.min(s.shMax, s.sh + over);
   ev('S', t.x, t.y, s.i);
@@ -819,7 +831,7 @@ function turretUpdate(n, dt) {   // Sentry Turret: stationary; default = steady 
       n.shT = 1.9;
       for (const f of targetsFor(n.ow).filter(m => dist(m, n) < 380 + (m.rad || 0)).sort((a, b) => dist(a, n) - dist(b, n)).slice(0, 3)) {
         ev('a', f.x, f.y, n.id);
-        if (isShip(f)) { f.emp = Math.max(f.emp, 0.35); hurt(f, (14 + 4 * lv) * lvm, n.ow, f.x, f.y); } else hurtNeut(f, (14 + 4 * lv) * lvm, f.x, f.y, n.ow);
+        if (isShip(f)) { f.emp = Math.max(f.emp, 0.35); hurt(f, (18 + 5 * lv) * lvm, n.ow, f.x, f.y); } else hurtNeut(f, (18 + 5 * lv) * lvm, f.x, f.y, n.ow);
       }
     }
   }
@@ -903,7 +915,7 @@ function updateNeut(n, dt) {
       for (const m of G.neut) if (m !== n && m.type === 6 && !m.dead && G.ships[m.ow] && teamOf(m.ow) === teamOf(n.ow) && dist(m, n) < 280) m.hp = Math.min(m.hpMax, m.hp + 7 * dt * lvm);
     }
     if (!foe) return;
-    if (C.dmg > 0 && (n.shT -= dt) <= 0) { n.shT = 0.1; fireBeam(n, foe, C.dmg * lvm, n.ow, 1000 + n.id); }
+    if (C.dmg > 0 && (n.shT -= dt) <= 0) { n.shT = 0.1; fireBeam(n, foe, C.dmg * lvm * (n.dmx || 1), n.ow, 1000 + n.id); }
     else if (n.cls === 3) { if ((n.shT -= dt) <= 0) { n.shT = 3.2; for (let k = 0; k < 2; k++) spawnProj(2, n.ow, n.x, n.y, n.ang + (k - 0.5) * 0.4, 340, 3.5, 16 * lvm, { tg: foe, turn: 3.2, sp: 340 }); } }
     else if (n.cls === 4) { if ((n.shT -= dt) <= 0) { n.shT = 8; for (let k = 0; k < 3; k++) spawnProj(3, n.ow, n.x, n.y, rnd(0, 6.28), 230, 10, 9 * lvm, { turn: 5, sp: 230 }); } }
     return;
@@ -1158,12 +1170,12 @@ function stepOnce(dt) {
     for (const sh of G.ships) {
       if (!sh.alive || dist(sh, f) > f.r + sh.rad) continue;
       if (teamOf(sh.i) === ft && f.k === 0) { sh.hp = Math.min(sh.hpMax, sh.hp + (20 + 6 * f.lvl) * dt); if (f.br === 1) { sh.sh = Math.min(sh.shMax, sh.sh + 14 * dt); sh.emp = Math.max(0, sh.emp - dt * 2); } }
-      else if (teamOf(sh.i) !== ft && f.k === 1 && tick) hurt(sh, (14 + 4 * f.lvl) * 0.5, f.o, sh.x, sh.y);
+      else if (teamOf(sh.i) !== ft && f.k === 1 && tick) { hurt(sh, (20 + 6 * f.lvl) * 0.5, f.o, sh.x, sh.y); sh.slow = Math.max(sh.slow || 0, 0.7); }
     }
     for (const n of G.neut) {
       if (n.dead || dist(n, f) > f.r + n.rad) continue;
       if (n.type === 6 && G.ships[n.ow] && teamOf(n.ow) === ft && f.k === 0) n.hp = Math.min(n.hpMax, n.hp + (20 + 6 * f.lvl) * dt);
-      else if (HN(n) && f.k === 1 && tick) hurtNeut(n, (14 + 4 * f.lvl) * 0.5, n.x, n.y, f.o);
+      else if (HN(n) && f.k === 1 && tick) hurtNeut(n, (20 + 6 * f.lvl) * 0.5, n.x, n.y, f.o);
     }
   }
   for (const p of G.pads) for (const sh of G.ships) if (sh.alive && Math.hypot(sh.x - p.x, sh.y - p.y) < p.r + sh.rad) sh.hp = Math.min(sh.hpMax, sh.hp + 22 * dt);
@@ -1242,7 +1254,7 @@ function botControl(s, dt) {
     let k = Math.floor(Math.random() * s.offers.length);
     const bi = s.offers.findIndex(o => o >= 100);
     if (bi >= 0 && G.diff !== 'easy') k = bi + (Math.random() < 0.5 ? 0 : 1) % s.offers.filter(o => o >= 100).length;
-    else if (G.diff !== 'easy') { const idx = PRIO[G.diff].map(p => s.offers.indexOf(p)).filter(i => i >= 0)[0]; k = idx != null ? idx : 0; }
+    else if (G.diff !== 'easy') { const idx = (ai.pr || (ai.pr = botPrio(G.diff))).map(p => s.offers.indexOf(p)).filter(i => i >= 0)[0]; k = idx != null ? idx : 0; }
     choose(s, k);
   }
   ai.t -= dt;
@@ -1275,7 +1287,7 @@ function botControl(s, dt) {
   if (ai.mode === 'zone') { tx = -s.x; ty = -s.y; }
   else if (tg && (ai.mode === 'fight' || ai.mode === 'farm')) {
     const dx = tg.x - s.x, dy = tg.y - s.y; dd = Math.hypot(dx, dy) || 1;
-    const want = ai.mode === 'fight' ? (tg.type === 2 ? 480 : 300) : 240, rad = dd > want + 60 ? 1 : dd < want - 80 ? -1 : 0, st = ai.mode === 'fight' ? 0.9 : 0.25;
+    const want = ai.mode === 'fight' ? (tg.type === 2 ? 480 : s.sk.includes(SCT) && eff(s, SCT) ? 150 : s.sk.includes(SIP) && eff(s, SIP) ? 360 : 300) : 240, rad = dd > want + 60 ? 1 : dd < want - 80 ? -1 : 0, st = ai.mode === 'fight' ? 0.9 : 0.25;
     tx = dx / dd * rad - dy / dd * ai.strafe * st; ty = dy / dd * rad + dx / dd * ai.strafe * st;
   } else if (ai.goal) { const gd = dist(ai.goal, s); if (ai.mode === 'hold' && gd < 60) { tx = ty = 0; } else if (ai.mode === 'beacon' && gd < 90) { tx = -(s.y - ai.goal.y) * 0.01; ty = (s.x - ai.goal.x) * 0.01; } else { tx = ai.goal.x - s.x; ty = ai.goal.y - s.y; } }
   let tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
@@ -1291,11 +1303,11 @@ function botControl(s, dt) {
   for (let j = 0; j < 3; j++) {
     const p = s.sk[j]; let on = 0; const ad = tg ? Math.abs(angDiff(s.ang, Math.atan2(tg.y - s.y, tg.x - s.x))) : 9;
     if (p === MIS) on = fight && dd < 700; else if (p === TOR) on = fight && dd < 480; else if (p === DRN) on = fight && dd < 650;
-    else if (p === MIN) on = flee || (fight && dd < 320); else if (p === DSH) on = flee || (d.lead >= 1 && fight && dd > 450 && Math.random() < 0.02);
-    else if (p === RAIL) on = fight && dd < 1000 && ad < 0.15; else if (p === GRV) on = fight && dd < 600 && dd > 200; else if (p === PUL) on = fight && dd < 230;
-    else if (p === CLK) on = flee || (fight && dd > 450 && dd < 900 && Math.random() < 0.03); else if (p === OD) on = fight && dd < 520; else if (p === AEG) on = G.proj.some(q => q.o !== s.i && (q.o < 0 || teamOf(q.o) !== team) && q.k !== 7 && dist(q, s) < 280);
+    else if (p === MIN) on = flee || (fight && dd < 320); else if (p === DSH) on = flee || (d.lead >= 1 && fight && dd > 330 && dd < 750 && ad < 0.35 && Math.random() < 0.06);
+    else if (p === RAIL) on = fight && dd < 1000 && ad < 0.15; else if (p === GRV) on = fight && dd < 600 && dd > 200; else if (p === PUL) on = fight && dd < 190 + 25 * eff(s, PUL);
+    else if (p === CLK) on = flee || (fight && dd > 450 && dd < 900 && Math.random() < 0.03); else if (p === OD) on = fight && dd < 520; else if (p === AEG) on = G.proj.some(q => q.o !== s.i && (q.o < 0 || teamOf(q.o) !== team) && q.k !== 7 && dist(q, s) < 280) || (fight && dd < 450 && G.t - s.lastHit < 1.5);
     else if (p === NAN) on = s.hp < s.hpMax * 0.6 && G.t - s.lastHit < 6; else if (p === ARC) on = fight && dd < 520; else if (p === FLT) on = fight && dd < 800;
-    else if (p === SCT) on = fight && dd < 230; else if (p === SIP) on = fight && dd < 480 && !s.sip; else if (p === TUR) on = fight && dd < 650;
+    else if (p === SCT) on = fight && dd < 210 && ad < 0.5; else if (p === SIP) on = fight && dd < 480 && !s.sip; else if (p === TUR) on = fight && dd < 650;
     else if (p === CHR) on = s.hp < s.hpMax * 0.45 && G.t - s.lastHit < 2.5;
     I['s' + j] = on ? 1 : 0;
   }
@@ -1377,9 +1389,12 @@ let CW = 1, CH = 1, DPR = 1, JOY = null, myTg = '', LASTM = null, SKP = [0, 0, 0
 let LOWQ = false, EMA = 0.016, SA = { t: 0, r: 0, b: 0, l: 0 };
 // adaptive quality: 2 = full, 1 = 1x resolution + no decorations, 0 = 0.75x resolution + fewer particles/backdrop layers. Steps down when the frame rate sags, tries back up after a calm half minute.
 const QFORCE = (location.search.match(/[?&]q=([012])/) || [])[1];
-let QUAL = QFORCE != null ? +QFORCE : 2, QT = 0, QDOWN = 0, GSTART = 0; const QFAIL = [0, 0, 0, 0];
+let QUAL = QFORCE != null ? +QFORCE : 2, QT = 0, QDOWN = 0, GSTART = 0;
+try { const sq = localStorage.getItem('sb_q'); if (QFORCE == null && (sq === '0' || sq === '1')) { QUAL = +sq; LOWQ = true; } } catch (e) {}   // remember what this device could handle
+const QFAIL = [0, 0, 0, 0];
 function setQual(q) {
   QUAL = q; LOWQ = q < 2; resize();
+  if (QFORCE == null) { try { localStorage.setItem('sb_q', String(q)); } catch (e) {} }
   if (ART2) { try { Art2.fx.setCap([120, 240, 400][q]); if (Art2.bg) Art2.bg.q = q; } catch (e) {} }
 }
 let VX0 = 0, VY0 = 0, VX1 = 0, VY1 = 0;   // visible world rect (set every frame): everything outside it is skipped, the arena is ~100x the screen
@@ -1489,7 +1504,7 @@ function processEvents2(list) {
       const SX = (n, d) => { if (window.SFX) SFX.at(n, x, y, R.cam, d); };
       if (t === 'f') { FIRE[r] = 1; SX('laser', 750); }
       else if (t === 'F') { FIRE[r] = 1; SX('rail', 1500); }
-      else if (t === 'h') { SX('hit', 800); const sh = nearestShip(x, y, 80); if (sh && r >= 8) { HIT[sh.i] = 0.6; if (sh.i === myi) { SHAKE = Math.max(SHAKE, 7); FLASH = Math.min(1, FLASH + 0.45); } } if (!LOWQ && (r >= 8 || Math.random() < 0.25)) Art2.fx.spawn('spark', x, y, {}); }
+      else if (t === 'h') { SX('hit', 800); const sh = nearestShip(x, y, 80); if (r >= 10 && DMGN.length < 14) DMGN.push({ x: x + rnd(-8, 8), y: y - 6, v: r, t: 0, me: !!(sh && sh.i === myi) }); if (sh && r >= 8) { HIT[sh.i] = 0.6; if (sh.i === myi) { SHAKE = Math.max(SHAKE, 7); FLASH = Math.min(1, FLASH + 0.45); } } if (!LOWQ && (r >= 8 || Math.random() < 0.25)) Art2.fx.spawn('spark', x, y, {}); }
       else if (t === 's') { SX('shield', 800); const sh = nearestShip(x, y, 110); if (sh) { Art2.shield.hit(sh.i, Math.atan2(y - sh.y, x - sh.x), 1); if (sh.i === myi && r >= 8) SHAKE = Math.max(SHAKE, 3); } }
       else if (t === 'x') { SX(r < 40 ? 'boomS' : r < 120 ? 'boomM' : 'boomL', 1400); Art2.fx.spawn('explosion', x, y, { size: r < 40 ? 'small' : r < 120 ? 'medium' : 'large' }); const mv = VIEWNOW && VIEWNOW.ships[myi]; if (mv && mv.alive) { const d = Math.hypot(mv.x - x, mv.y - y); if (d < 500) SHAKE = Math.max(SHAKE, (r < 40 ? 3 : 9) * (1 - d / 500)); } }
       else if (t === 'k') { SX('shock', 1400); Art2.fx.spawn('shockwave', x, y, { r, col: '#9ff' }); }
@@ -1569,7 +1584,7 @@ function drawShipMain(s, isMe) {
   if (s.boost && !PB[i]) { try { Art2.fx.spawn('dashTrail', s.x, s.y, { ang: s.ang, col: facC(i) }); } catch (e) {} }
   PB[i] = s.boost;
   a.id = i; a.x = s.x; a.y = s.y; a.ang = s.ang; a.vx = s.vx; a.vy = s.vy; a.lv = s.lv; a.col = facC(i); a.seed = i * 7 + 3; a.thr = THR[i]; a.boost = s.boost ? 1 : 0;
-  a.fire = FIRE[i]; a.hit = HIT[i]; a.hpf = clamp(s.hp / s.hpMax, 0, 1); a.shf = s.shMax ? clamp(s.sh / s.shMax, 0, 1) : 0; a.emp = s.emp ? 1 : 0; a.alive = true; a.zoom = FZ;
+  a.fire = FIRE[i]; a.hit = HIT[i]; a.hpf = clamp(s.hp / s.hpMax, 0, 1); a.shf = s.shMax ? clamp(s.sh / s.shMax, 0, 1) : 0; a.emp = s.emp ? 1 : 0; a.alive = true; a.zoom = QUAL < 2 && !isMe ? FZ * 0.45 : FZ;   // low quality: other ships use the simplified hull
   try { Art2.ship.draw(ctx, a, TT); if (!LOWQ || isMe) Art2.shield.draw(ctx, a, TT); }
   catch (e) { if (!window.__artErr) { window.__artErr = e.message; console.error('Art2 ship', e); } return drawShipOld(s, isMe); }
   if (s.slow) { ctx.strokeStyle = '#7fe3ff'; ctx.globalAlpha = 0.7; ctx.lineWidth = 2; ctx.setLineDash([5, 7]); ctx.lineDashOffset = -TT * 20; ctx.beginPath(); ctx.arc(s.x, s.y, r * 1.35, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1; }
@@ -1652,14 +1667,14 @@ function drawTurret(n) {   // deployed Sentry Turret: team-ringed hex base, barr
   ctx.save(); ctx.translate(n.x, n.y);
   ctx.strokeStyle = mine ? RELC[1] : RELC[2]; ctx.globalAlpha = 0.16; ctx.lineWidth = 1.5; ctx.setLineDash([6, 8]); ctx.beginPath(); ctx.arc(0, 0, br === 1 ? 720 : 500, 0, 7); ctx.stroke(); ctx.setLineDash([]);
   ctx.globalAlpha = 1;
-  if (Art2.glow) Art2.glow(ctx, 0, 0, 40, Art2.rgba ? Art2.rgba(col, 0.5) : col, 0.45);
+  if (window.Art2 && Art2.glow) Art2.glow(ctx, 0, 0, 40, Art2.rgba(col, 0.5), 0.45);
   const g = ctx.createRadialGradient(-5, -6, 2, 0, 0, 20); g.addColorStop(0, '#8a96ab'); g.addColorStop(1, '#1b2130'); ctx.fillStyle = g;
   ctx.beginPath(); for (let i = 0; i < 6; i++) ctx.lineTo(Math.cos(i * 1.047) * 18, Math.sin(i * 1.047) * 18); ctx.closePath(); ctx.fill();
   ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.stroke();
   ctx.rotate(n.ang);
   if (br === 2) {   // tesla coil
     ctx.fillStyle = '#2b3347'; ctx.fillRect(-4, -5, 14, 10); ctx.strokeStyle = '#9fd0ff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(8, -7); ctx.lineTo(18, -3); ctx.moveTo(8, 7); ctx.lineTo(18, 3); ctx.stroke();
-    ctx.fillStyle = '#e6f6ff'; ctx.beginPath(); ctx.arc(14, 0, 4 + Math.sin(TT * 14) * 0.8, 0, 7); ctx.fill(); if (Art2.glow) Art2.glow(ctx, 14, 0, 18, 'rgba(120,190,255,0.9)', 0.7);
+    ctx.fillStyle = '#e6f6ff'; ctx.beginPath(); ctx.arc(14, 0, 4 + Math.sin(TT * 14) * 0.8, 0, 7); ctx.fill(); if (window.Art2 && Art2.glow) Art2.glow(ctx, 14, 0, 18, 'rgba(120,190,255,0.9)', 0.7);
   } else if (br === 1) {   // missile pods
     ctx.fillStyle = '#39425a'; ctx.fillRect(-2, -11, 20, 7); ctx.fillRect(-2, 4, 20, 7); ctx.fillStyle = '#ffb347'; ctx.fillRect(14, -10, 4, 5); ctx.fillRect(14, 5, 4, 5);
   } else {   // twin beam barrels
@@ -1681,7 +1696,7 @@ function drawSiphons(V) {   // Siphon Beam tether: wavy green/violet ribbon with
     for (let pass = 0; pass < 2; pass++) {
       ctx.beginPath();
       for (let k = 0; k <= seg; k++) { const u = k / seg, w = Math.sin(u * Math.PI) * (10 + 4 * pass) * Math.sin(tt * 9 + u * 11 + pass * 2), x = sh.x + dx * u + nx * w, y = sh.y + dy * u + ny * w; k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
-      ctx.strokeStyle = pass ? 'rgba(220,255,200,0.9)' : 'rgba(150,255,120,0.4)'; ctx.globalAlpha = f * (pass ? 0.9 : 0.55); ctx.lineWidth = pass ? 1.6 : 7; ctx.stroke();
+      ctx.strokeStyle = pass ? 'rgba(235,255,215,0.95)' : 'rgba(110,255,120,0.55)'; ctx.globalAlpha = f * (pass ? 0.95 : 0.7); ctx.lineWidth = pass ? 2 : 11; ctx.stroke();
     }
     ctx.globalAlpha = f; for (let k = 0; k < 6; k++) { const u = 1 - ((tt * 1.3 + k / 6) % 1); Art2.glow(ctx, sh.x + dx * u, sh.y + dy * u, 9, 'rgba(190,255,150,0.95)', 0.9); }
     Art2.glow(ctx, q.tx, q.ty, 26, 'rgba(120,255,140,0.7)', 0.6 * f);
@@ -1791,6 +1806,7 @@ function drawDust(cam, Z, dt) {   // foreground motes that streak along the came
 const TRAILS = [];
 function drawTrail(s, r, col, boosting) {   // tapered additive ribbon behind a thrusting ship; thick and bright during an afterburner dash
   const T = TRAILS[s.i] || (TRAILS[s.i] = { p: [], t: 0 }), sp = Math.hypot(s.vx, s.vy), max = (LOWQ ? 7 : 14) * 2;
+  if (T.p.length && Math.hypot(s.x - T.p[T.p.length - 2], s.y - T.p[T.p.length - 1]) > 220) T.p.length = 0;   // respawn / warp / blink: don't smear a line across the map
   T.t += FDT;
   if (T.t > 0.03) { T.t = 0; if (sp > 25 && (s.thr || boosting)) T.p.push(s.x - Math.cos(s.ang) * r * 0.9, s.y - Math.sin(s.ang) * r * 0.9); else if (T.p.length) T.p.splice(0, 2); if (T.p.length > max) T.p.splice(0, T.p.length - max); }
   const m = T.p.length / 2; if (m < 2) return;
@@ -1958,10 +1974,9 @@ function frame(now) {
     if (!s.alive) continue;
     if (!vis(s.x, s.y, (FL(s) & 2) ? 330 : 130)) { FIRE[s.i] = 0; HIT[s.i] = 0; continue; }
     if (!ART2 && s.thr && Math.random() < 0.7) { const b = radOf(s.lv) * 0.7; fx(s.x - Math.cos(s.ang) * b, s.y - Math.sin(s.ang) * b, -s.vx * 0.15 + rnd(-20, 20), -s.vy * 0.15 + rnd(-20, 20), 0.35, s.boost ? '#9cf' : '#ff9a3d', 3); }
-    if (ART2) { const fl2 = FL(s); if (!(fl2 & 1) || s === M || PL[s.i].fac === myFac()) drawTrail(s, radOf(s.lv), facC(s.i), !!s.boost); }
+    if (ART2 && QUAL > 0) { const fl2 = FL(s); if (!(fl2 & 1) || s === M || PL[s.i].fac === myFac()) drawTrail(s, radOf(s.lv), facC(s.i), !!s.boost); }
     drawShip(s, s === M);
   }
-  if (ART2) drawSiphons(V);
   { const nb = performance.now();   // laser beams: full line from the shooter to what it hits
     ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
     for (let i = BEAMS.length - 1; i >= 0; i--) {
@@ -1975,6 +1990,12 @@ function frame(now) {
       if (ART2) { Art2.glow(ctx, b.x, b.y, 14 + 12 * th, 'rgba(255,170,80,0.95)', 0.85 * f); Art2.glow(ctx, sh.x + Math.cos(ang) * rr * 1.1, sh.y + Math.sin(ang) * rr * 1.1, 10 + 6 * th, 'rgba(255,210,150,0.9)', 0.6 * f); }
     }
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.lineCap = 'butt'; }
+  if (ART2) drawSiphons(V);
+  if (DMGN.length) {   // floating damage numbers (constant on-screen size)
+    ctx.save(); ctx.textAlign = 'center'; ctx.lineJoin = 'round'; ctx.font = 'bold ' + Math.round(14 / Z) + 'px system-ui'; ctx.lineWidth = 3 / Z; ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+    for (let i = DMGN.length - 1; i >= 0; i--) { const d = DMGN[i]; d.t += dt; if (d.t > 0.9) { DMGN.splice(i, 1); continue; } const k = d.t / 0.9, yy = d.y - k * 34 / Z * 1.6; ctx.globalAlpha = 1 - k * k; const big = d.v >= 40; ctx.fillStyle = d.me ? '#ff6a5a' : big ? '#ffd24a' : '#fff4d6'; const tx = String(d.v); ctx.strokeText(tx, d.x, yy); ctx.fillText(tx, d.x, yy); }
+    ctx.restore();
+  }
   { const nz = performance.now();   // arc storm lightning
     ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (let i = ZAPS.length - 1; i >= 0; i--) {
@@ -2017,12 +2038,13 @@ function offerInfo(p, M) {   // card content for a plain upgrade (part id) or a 
 function drawAlerts(V, M) {   // full-screen flashes, solar-flare warning, status effects, fleet size
   if (WFLASH > 0.02) { ctx.fillStyle = 'rgba(255,240,210,' + (0.85 * WFLASH) + ')'; ctx.fillRect(0, 0, CW, CH); }
   const bn = (txt, y, col) => { if (H2.banner) H2.banner(ctx, txt, CW / 2, y, col); else { ctx.textAlign = 'center'; ctx.fillStyle = col; ctx.font = 'bold 18px system-ui'; ctx.fillText(txt, CW / 2, y); } };
+  const cardsUp = M && M.alive && M.pending > 0 && M.offers && M.offers.length, by0 = cardsUp ? SA.t + 184 : SA.t + 112;   // keep banners clear of the upgrade cards
   if (V.flare > 0) {
     const pu = 0.5 + 0.5 * Math.sin(TT * 8), g = ctx.createRadialGradient(CW / 2, CH / 2, Math.min(CW, CH) * 0.3, CW / 2, CH / 2, Math.max(CW, CH) * 0.75);
     g.addColorStop(0, 'rgba(255,170,60,0)'); g.addColorStop(1, 'rgba(255,150,40,' + (0.16 + 0.2 * pu) + ')'); ctx.fillStyle = g; ctx.fillRect(0, 0, CW, CH);
-    bn('SOLAR FLARE IN ' + Math.ceil(V.flare) + ' — HIDE IN A NEBULA OR BEHIND A ROCK', SA.t + 112, '#ffb45a');
+    bn('SOLAR FLARE IN ' + Math.ceil(V.flare) + ' — HIDE IN A NEBULA OR BEHIND A ROCK', by0, '#ffb45a');
   }
-  if (M && M.alive && COND !== 'capture' && Math.hypot(M.x, M.y) > V.z) bn('OUTSIDE THE SAFE ZONE — RETURN TO THE CENTRE', SA.t + (V.flare > 0 ? 160 : 112), '#ff5a5a');
+  if (M && M.alive && COND !== 'capture' && Math.hypot(M.x, M.y) > V.z) bn('OUTSIDE THE SAFE ZONE — RETURN TO THE CENTRE', by0 + (V.flare > 0 ? 48 : 0), '#ff5a5a');
   if (!M || !M.alive) return;
   const fl = FL(M), st = [];
   if (fl & 1) st.push('CLOAKED'); if (fl & 2) st.push('AEGIS'); if (fl & 4) st.push('OVERDRIVE'); if (fl & 8) st.push('AMBUSH');
