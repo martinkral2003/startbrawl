@@ -141,7 +141,7 @@
       }
     }
     yy += 10;
-    const nm = Math.max(13, lv.length), per = nm > 13 ? 10 : 13, sl = (W - (per - 1) * 2) / per;
+    const nm = Math.max(13, lv.length), per = nm > 13 ? 12 : 13, sl = (W - (per - 1) * 2) / per;
     for (let i = 0; i < nm; i++) {
       const sx = x + (i % per) * (sl + 2), ry = yy + Math.floor(i / per) * (sl + 2), l = num(lv[i], 0), on = l > 0, mc = (A.COL8 && A.COL8[i % 8]) || ACC;
       rr(c, sx, ry, sl, sl, 2); c.fillStyle = on ? rgba(col(mc, ACC), 0.20) : 'rgba(0,0,0,0.4)'; c.fill();

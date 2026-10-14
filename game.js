@@ -5,11 +5,11 @@
 
 const NS = 'starbrawl2-4d7a/';
 const BROKER = new URLSearchParams(location.search).get('broker') || 'wss://broker.emqx.io:8084/mqtt';
-const MAXP = 8, R0 = 4600, ZONE_T0 = 75, ZONE_T1 = 360, ZONE_MIN = 140, DT = 1 / 30, MAXLV = 16, NP = 19, DRAG = 0.55;
+const MAXP = 8, R0 = 4600, ZONE_T0 = 75, ZONE_T1 = 360, ZONE_MIN = 140, DT = 1 / 30, MAXLV = 16, NP = 23, DRAG = 0.55;
 const TC = ['#ff5a5a', '#4da3ff'], TN = ['RED', 'BLUE'];
 const PC8 = ['#ff5a5a', '#4da3ff', '#5ee07a', '#ffd34d', '#c779ff', '#ff9a3d', '#38e0d0', '#ff7ad1'];
 const BOT_NAMES = ['Nova', 'Vega', 'Orion', 'Lyra', 'Atlas', 'Zeta', 'Kepler', 'Rigel'];
-const [ARM, LAS, SHD, ENG, REP, MIS, TOR, DRN, MIN, DSH, RAIL, GRV, PUL, CLK, OD, AEG, NAN, ARC, FLT] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+const [ARM, LAS, SHD, ENG, REP, MIS, TOR, DRN, MIN, DSH, RAIL, GRV, PUL, CLK, OD, AEG, NAN, ARC, FLT, SCT, SIP, TUR, CHR] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
 const PARTS = [ // name, desc, tag, active?
   ['Hull Armor', 'more hull, less damage taken', 'AR', 0], ['Lasers', 'more barrels & damage (auto-fire)', 'LS', 0],
   ['Shield', 'regenerating energy shield', 'SH', 0], ['Engines', 'speed & turning', 'EN', 0],
@@ -20,6 +20,8 @@ const PARTS = [ // name, desc, tag, active?
   ['Cloak Field', 'vanish from enemy targeting; breaks when hit [skill]', 'CL', 1], ['Overdrive', '+30% damage & speed for a few seconds [skill]', 'OD', 1],
   ['Aegis Barrier', 'bubble that destroys incoming shots [skill]', 'AG', 1], ['Repair Field', 'healing zone for allies & escorts [skill]', 'NF', 1],
   ['Arc Storm', 'chain lightning: damages + stuns several foes [skill]', 'AS', 1], ['Reinforcements', 'call temporary escort ships to fight for you [skill]', 'RF', 1],
+  ['Scatter Cannon', 'point-blank pellet burst: shreds anything close [skill]', 'SC', 1], ['Siphon Beam', 'drain your target and heal yourself [skill]', 'SB', 1],
+  ['Sentry Turret', 'deploy an auto-turret that guards the spot [skill]', 'ST', 1], ['Chrono Shift', 'rewind to where you were 3 s ago, recover hull [skill]', 'CS', 1],
 ];
 // Specialisations: once a part reaches level 3 you may pick ONE of two branches (offered as cards with id 100 + part*2 + variant)
 const BR = [
@@ -42,6 +44,10 @@ const BR = [
   [['Resupply Field', 'also restores shields'], ['Toxic Field', 'burns enemies instead']],
   [['Tempest', '3 more targets, longer reach'], ['Overload', 'one target: huge damage + stun']],
   [['Strike Wing', 'summons 3 gunships'], ['Heavy Cruiser', 'summons a tough frigate']],
+  [['Slug Thrower', 'one heavy slug: hits hard from range'], ['Shredder', '+5 pellets, wide cone, slows + shoves']],
+  [['Vampiric Link', 'heals 100%, overheal becomes shield'], ['Entangling Link', 'slows the target, +25% range']],
+  [['Missile Battery', 'turret fires homing missiles from afar'], ['Tesla Tower', 'turret chains lightning through 3 foes']],
+  [['Echo Burst', 'stunning blast where you vanished'], ['Deep Rewind', 'go back 6 s, recover more hull']],
 ];
 // Fleet ships: stranded ships you rescue, mercenaries you hire at outposts, reinforcements you summon
 const ECLS = [
@@ -50,15 +56,16 @@ const ECLS = [
   { n: 'Medic', hp: 210, rad: 18, cost: 100, rng: 400, dmg: 0.2, col: '#5ee07a', tag: 'M' },
   { n: 'Artillery', hp: 290, rad: 20, cost: 120, rng: 700, dmg: 0, col: '#ff9a3d', tag: 'A' },
   { n: 'Carrier', hp: 330, rad: 22, cost: 140, rng: 720, dmg: 0, col: '#c779ff', tag: 'C' },
+  { n: 'Turret', hp: 260, rad: 17, cost: 0, rng: 500, dmg: 0, col: '#9fe8ff', tag: 'T' },   // deployed by Sentry Turret (never hired)
 ];
 const SCORE_KILL = 3;   // score mode: points per ship kill
-const PCOL = ['#c8d0e0', '#ff6b6b', '#6cf', '#9ef', '#69db7c', '#ffa94d', '#ffd43b', '#b197fc', '#ff8787', '#74c0fc', '#9ff', '#ffb870', '#e599f7', '#a9b8ff', '#ff6a4d', '#7fd8ff', '#8cf0a0', '#fff07a', '#ffb3e6'];
+const PCOL = ['#c8d0e0', '#ff6b6b', '#6cf', '#9ef', '#69db7c', '#ffa94d', '#ffd43b', '#b197fc', '#ff8787', '#74c0fc', '#9ff', '#ffb870', '#e599f7', '#a9b8ff', '#ff6a4d', '#7fd8ff', '#8cf0a0', '#fff07a', '#ffb3e6', '#ffb347', '#d96bff', '#9fe8ff', '#7affc8'];
 const DIFF = {
   easy:   { err: 0.45, react: 0.6, turn: 3, lead: 0,   spd: 0.75, aggr: 0.2 },
   normal: { err: 0.18, react: 0.3, turn: 6, lead: 0.6, spd: 0.95, aggr: 0.5 },
   hard:   { err: 0.05, react: 0.12, turn: 12, lead: 1, spd: 1,    aggr: 0.9 },
 };
-const PRIO = { easy: [], normal: [SHD, LAS, ARM, MIS, ENG, TOR, REP, RAIL, ARC, FLT, NAN, GRV, DRN, MIN, PUL, DSH, AEG, OD, CLK], hard: [LAS, SHD, RAIL, MIS, ARM, ARC, TOR, ENG, REP, FLT, OD, GRV, NAN, DRN, MIN, PUL, AEG, DSH, CLK] };
+const PRIO = { easy: [], normal: [SHD, LAS, ARM, MIS, ENG, TOR, REP, RAIL, ARC, FLT, NAN, GRV, DRN, MIN, PUL, DSH, AEG, OD, CLK, SCT, SIP, TUR, CHR], hard: [LAS, SHD, RAIL, MIS, ARM, ARC, TOR, ENG, REP, FLT, OD, GRV, NAN, DRN, MIN, PUL, AEG, DSH, CLK, SCT, SIP, TUR, CHR] };
 const LASER_RANGE = 430;
 
 const rid = () => Math.random().toString(36).slice(2, 10);
@@ -81,7 +88,7 @@ const stats = s => {
 };
 const HN = n => n.type <= 4 || n.type >= 8;   // hostile neutral: scouts, haulers, boss, sentries, warships, raiders, dreadnought
 const cdMax = (lv, p) => [0, 0, 0, 0, 0, 5 - 0.4 * lv[MIS], 7 - 0.8 * lv[TOR], 13 - 1.6 * lv[DRN], 9.5 - 0.8 * lv[MIN], 4.5 - 0.5 * lv[DSH], 6.5 - 0.8 * lv[RAIL], 15 - 1.6 * lv[GRV], 8 - 0.8 * lv[PUL],
-  17 - 2 * lv[CLK], 18 - 2 * lv[OD], 16 - 2 * lv[AEG], 15 - 1.5 * lv[NAN], 8 - 0.9 * lv[ARC], 30 - 3 * lv[FLT]][p];
+  17 - 2 * lv[CLK], 18 - 2 * lv[OD], 16 - 2 * lv[AEG], 15 - 1.5 * lv[NAN], 8 - 0.9 * lv[ARC], 30 - 3 * lv[FLT], 8 - 0.8 * lv[SCT], 14 - 1.5 * lv[SIP], 20 - 2 * lv[TUR], 24 - 3 * lv[CHR]][p];
 const isLive = t => t && !t.dead && t.alive !== false && (t.hp == null || t.hp > 0);
 const isShip = t => t && t.lv != null;
 let GMUL = 1;
@@ -94,6 +101,8 @@ function buildStream(o) {
   const st = { ...o }; if (st.cx == null) { st.cx = (st.x1 + st.x2) / 2; st.cy = (st.y1 + st.y2) / 2; }
   if (st.str == null) st.str = 1; if (st.ph == null) st.ph = Math.random() * 6.28;
   st.pts = []; for (let i = 0; i <= 14; i++) st.pts.push(bez(st, i / 14));
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (const p of st.pts) { if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; }
+  st.bb = [x0 - st.w - 40, y0 - st.w - 40, x1 + st.w + 40, y1 + st.w + 40];
   return st;
 }
 const streamK = st => st.str * (0.65 + 0.35 * Math.sin(STT * 0.35 + st.ph));   // currents surge and ebb
@@ -139,7 +148,7 @@ const RELC = ['#ffffff', '#5ee07a', '#ff5a5a'];   // me / ally / enemy
 const FL = s => (s.fl != null ? s.fl : flagsOf(s));   // ship status bits: 1 cloaked, 2 aegis, 4 overdrive, 8 ambush
 const myFac = () => { const i = S.host ? (G ? G.me : -1) : (C ? C.me : -1); return PL[i] ? PL[i].fac : -1; };
 const fieldFac = f => (f.fac != null ? f.fac : (PL[f.o] ? PL[f.o].fac : 0));
-let AIMING = null, AIMV = [null, null, null], CUR = null; const TELE = [], BEAMS = [];
+let AIMING = null, AIMV = [null, null, null], CUR = null; const TELE = [], BEAMS = [], SIPS = [];
 let FIRE = {}, HIT = {}, THR = {}, PB = {}, FDT = 0.016, FZ = 1, TT = 0; const SHA = [];
 let G = null, C = null, PL = [], simTimer = null, inputTimer = null, MODE = 'teams', COND = 'last', LEN = 'normal';
 const FC = f => (MODE === 'teams' ? TC[f] : PC8[f]);
@@ -321,7 +330,7 @@ function startGame(L) {
   R = { fx: [], log: [], cam: null, spec: 0, lock: 0 }; FIRE = {}; HIT = {}; THR = {}; PB = {};
   if (ART2) { try { Art2.fx.clear(); } catch (e) {} }
   clearInterval(simTimer); clearInterval(inputTimer);
-  myTg = ''; GMUL = 1;
+  myTg = ''; GMUL = 1; GSTART = performance.now(); if (QFORCE != null) setQual(+QFORCE);
   if (S.host) { newGame(L); simTimer = setInterval(hostTick, 33); }
   else { C = { me: PL.findIndex(p => p.id === S.id), snaps: [], pred: null, over: false }; inputTimer = setInterval(sendInput, 50); }
   S.mode = 'game'; panel(''); if (window.SFX) SFX.play('go');
@@ -499,7 +508,7 @@ function killShip(s, by) {
   s.alive = false; s.hp = 0; s.respT = G.cond === 'last' ? 6 : 5 + Math.min(4, Math.floor(s.level / 4)); ev('d', s.x, s.y, s.i);
   dropOrbs(s.x, s.y, 20 + s.scrap * 0.35, 6);
   if (Math.random() < 0.5) G.pick.push({ id: G.nid++, t: 1, x: s.x, y: s.y, v: 0, vx: 0, vy: 0, life: 60 });
-  const k = by >= 0 ? G.ships[by] : null, st = s.streak; s.streak = 0; s.cloak = s.od = s.aegis = s.amb = 0;
+  const k = by >= 0 ? G.ships[by] : null, st = s.streak; s.streak = 0; s.cloak = s.od = s.aegis = s.amb = 0; s.sip = null;
   if (k && k.alive && teamOf(k.i) !== teamOf(s.i)) {
     k.kills++; k.streak++; addScrap(k, 25 + 8 * s.level + 12 * Math.max(0, s.level - k.level)); k.hp = Math.min(k.hpMax, k.hp + 60);
     let pts = SCORE_KILL, msg = `${G.players[k.i].name} destroyed ${G.players[s.i].name}`;
@@ -531,7 +540,7 @@ function respawn(s) {   // pick the safest of a few spots around the start base 
   }
   { const d = Math.hypot(best.x, best.y), lim = G.z - 320; if (d > lim && d > 0) best = { x: best.x / d * lim, y: best.y / d * lim }; }
   s.alive = true; s.hp = s.hpMax; s.sh = s.shMax; s.x = best.x; s.y = best.y; s.vx = s.vy = 0; s.ang = Math.atan2(-best.y, -best.x); s.emp = 0; s.slow = 0; s.inv = 3; s.lastHit = G.t;
-  s.cloak = s.od = s.aegis = s.amb = 0; s.streak = 0;
+  s.cloak = s.od = s.aegis = s.amb = 0; s.streak = 0; s.hist = []; s.sip = null;
   for (let p = 0; p < NP; p++) { s.dp[p] = 0; s.ph[p] = 30 + 20 * s.lv[p]; }
   ev('w', s.x, s.y);
 }
@@ -685,6 +694,8 @@ function updateShip(s, dt) {
       if (Math.hypot(s.x - p.x, s.y - p.y) < 40 + s.rad) { const q = G.portals[1 - k]; ev('w', s.x, s.y); s.x = q.x + (s.vx > 0 ? 1 : -1) * 70; s.y = q.y; s.portalT = 2.5; ev('w', s.x, s.y); break; }
     }
   }
+  if (L(CHR) && G.t - (s.hT || 0) >= 0.25) { s.hT = G.t; (s.hist || (s.hist = [])).push({ x: s.x, y: s.y, hp: s.hp, t: G.t }); if (s.hist.length > 30) s.hist.shift(); }   // Chrono Shift: a position/hull sample every 0.25 s
+  if (s.sip) siphonTick(s, dt);
   // target resolution + auto-fire lasers
   let t = tgtObj(I.tg);
   if (!t || !enemyOf(s, t) || dist(s, t) > 720) t = null;
@@ -749,8 +760,70 @@ function updateShip(s, dt) {
       G.fields.push({ x: s.x, y: s.y, r: 230, life: 6, max: 6, o: s.i, k: bp === 2 ? 1 : 0, br: bp, lvl: lv }); ev('w', s.x, s.y);
     }
     else if (p === ARC) arcStorm(s, lv, bp);
+    else if (p === SCT) {   // point-blank pellet burst (Slug Thrower: one heavy slug; Shredder: wider, slows and shoves)
+      const nP = 7 + 2 * lv + (bp === 2 ? 5 : 0), dP = 9 + 2 * lv, spread = bp === 2 ? 1.5 : 0.9;
+      if (bp === 1) spawnProj(1, s.i, s.x + Math.cos(ang0) * s.rad, s.y + Math.sin(ang0) * s.rad, ang0, 1000, 0.6, nP * dP * 0.75, { pr: 8, kb: 300 });
+      else for (let k = 0; k < nP; k++) spawnProj(1, s.i, s.x + Math.cos(ang0) * s.rad, s.y + Math.sin(ang0) * s.rad, ang0 + (nP > 1 ? k / (nP - 1) - 0.5 : 0) * spread + rnd(-0.05, 0.05), rnd(640, 780), rnd(0.4, 0.48), dP, { kb: bp === 2 ? 170 : 40, slow: bp === 2 ? 1.3 : 0 });
+      ev('B', s.x, s.y, Math.round(ang0 * 100)); s.vx -= Math.cos(ang0) * 90; s.vy -= Math.sin(ang0) * 90;
+    }
+    else if (p === SIP) {   // channel a drain on the current target (needs a ship / hostile in range)
+      if (t && (isShip(t) || t.type != null) && dist(s, t) < (bp === 2 ? 700 : 560) + (t.rad || 0)) { s.sip = { tgt: t, t: 2.5 + 0.5 * lv, lv, br: bp, tk: 0 }; ev('w', s.x, s.y); }
+      else s.cd[p] = 0.6;
+    }
+    else if (p === TUR) {   // deploy a stationary auto-turret (one at a time)
+      for (const o of G.neut) if (o.type === 6 && o.cls === 5 && o.ow === s.i && !o.dead) o.dead = true;
+      const da = aa != null ? aa : (Math.hypot(s.vx, s.vy) > 30 ? Math.atan2(-s.vy, -s.vx) : s.ang + Math.PI), dd = aa != null ? 70 + pw * 260 : 70;
+      const x = s.x + Math.cos(da) * dd, y = s.y + Math.sin(da) * dd, hp = 200 + 60 * lv;
+      G.neut.push({ id: G.nid++, type: 6, cls: 5, x, y, vx: 0, vy: 0, ang: s.ang, hp, hpMax: hp, gx: x, gy: y, shT: 0.5, rad: ECLS[5].rad, by: -1, ow: s.i, res: 0, ttl: 14 + 2 * lv, stat: 1, tlv: lv, tbr: bp });
+      ev('w', x, y);
+    }
+    else if (p === CHR) {   // rewind to the position you held 3 s ago (6 s with Deep Rewind), recover hull, cleanse, brief invulnerability
+      const want = G.t - (bp === 2 ? 6 : 3), h = s.hist || []; let e = null;
+      for (const q of h) if (q.t <= G.t - 1 && (!e || Math.abs(q.t - want) < Math.abs(e.t - want))) e = q;
+      if (!e) s.cd[p] = 1;
+      else {
+        ev('w', s.x, s.y); ev('C', s.x, s.y, 0);
+        if (bp === 1) {   // Echo Burst: foes chasing you get stunned where you vanished
+          const er = 210; ev('k', s.x, s.y, er);
+          for (const o of G.ships) if (o.alive && teamOf(o.i) !== teamOf(s.i) && dist(o, s) < er + o.rad) { o.emp = Math.max(o.emp, 0.7); hurt(o, 18 + 8 * lv, s.i, o.x, o.y); }
+        }
+        const cap = s.hpMax * (0.16 + 0.07 * lv + (bp === 2 ? 0.2 : 0));
+        s.x = e.x; s.y = e.y; s.vx = s.vy = 0; s.emp = 0; s.slow = 0; s.phase = 0.6; s.portalT = 1; s.sip = null;
+        s.hp = Math.min(s.hpMax, Math.max(s.hp, Math.min(e.hp, s.hp + cap))); s.hist = [];
+        ev('w', s.x, s.y);
+      }
+    }
     else if (p === FLT) { if (bp === 1) for (let k = 0; k < 3; k++) addEscort(s, 0, 25); else if (bp === 2) addEscort(s, 1, 40, 1.5); else { addEscort(s, 0, 25); addEscort(s, 0, 25); } logMsg(`${G.players[s.i].name} called reinforcements!`); }
   }
+}
+function siphonTick(s, dt) {   // Siphon Beam: every 0.25 s drain the target and heal (Vampiric: 100% + shield overflow; Entangling: slow, longer tether)
+  const q = s.sip, t = q.tgt, ok = t && (isShip(t) ? t.alive && !(t.cloak > 0) : isLive(t));
+  if (!ok || s.emp > 0 || (q.t -= dt) <= 0 || dist(s, t) > (q.br === 2 ? 820 : 640) + (t.rad || 0) || segBlock(s.x, s.y, t.x, t.y, t)) { s.sip = null; return; }
+  if ((q.tk -= dt) > 0) return;
+  q.tk = 0.25;
+  const dmg = (22 + 7 * q.lv) * 0.25 * (s.od > 0 ? 1.3 : 1), before = t.hp + (t.sh || 0);
+  if (isShip(t)) { hurt(t, dmg, s.i, t.x, t.y); if (q.br === 2) t.slow = Math.max(t.slow || 0, 0.5); } else hurtNeut(t, dmg, t.x, t.y, s.i);
+  const dealt = Math.max(0, before - Math.max(0, t.hp) - (t.sh || 0)), heal = dealt * (q.br === 1 ? 1 : q.br === 2 ? 0.5 : 0.7);
+  const over = Math.max(0, s.hp + heal - s.hpMax); s.hp = Math.min(s.hpMax, s.hp + heal);
+  if (q.br === 1 && over > 0 && s.shMax > 0) s.sh = Math.min(s.shMax, s.sh + over);
+  ev('S', t.x, t.y, s.i);
+}
+function turretUpdate(n, dt) {   // Sentry Turret: stationary; default = steady beam, Missile Battery = homing pairs, Tesla Tower = chain lightning
+  n.vx = n.vy = 0;
+  const o = G.ships[n.ow], lv = n.tlv || 1, br = n.tbr || 0, foe = nearest(targetsFor(n.ow), n, br === 1 ? 720 : 500), lvm = 1 + 0.05 * (o ? o.level : 0);
+  if (!foe) { n.ang += dt * 0.6; return; }
+  n.ang = Math.atan2(foe.y - n.y, foe.x - n.x);
+  if (br === 1) { if ((n.shT -= dt) <= 0) { n.shT = 3; for (let k = 0; k < 2; k++) spawnProj(2, n.ow, n.x, n.y, n.ang + (k - 0.5) * 0.5, 340, 3.5, (14 + 3 * lv) * lvm, { tg: foe, turn: 3.2, sp: 340 }); } }
+  else if (br === 2) {
+    if ((n.shT -= dt) <= 0) {
+      n.shT = 1.9;
+      for (const f of targetsFor(n.ow).filter(m => dist(m, n) < 380 + (m.rad || 0)).sort((a, b) => dist(a, n) - dist(b, n)).slice(0, 3)) {
+        ev('a', f.x, f.y, n.id);
+        if (isShip(f)) { f.emp = Math.max(f.emp, 0.35); hurt(f, (14 + 4 * lv) * lvm, n.ow, f.x, f.y); } else hurtNeut(f, (14 + 4 * lv) * lvm, f.x, f.y, n.ow);
+      }
+    }
+  }
+  else if ((n.shT -= dt) <= 0) { n.shT = 0.1; fireBeam(n, foe, (1 + 0.6 * lv) * lvm, n.ow, 1000 + n.id); }
 }
 function stepProj(p, dt) {
   if (p.k === 2 || p.k === 3) {
@@ -765,7 +838,7 @@ function stepProj(p, dt) {
   p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
 }
 function projHit(p) {
-  const pr = [0, 3, 5, 5, 9, 4, 14, 5][p.k];
+  const pr = p.pr || [0, 3, 5, 5, 9, 4, 14, 5][p.k];
   for (const w of G.wells) { const d = Math.hypot(p.x - w.x, p.y - w.y); if (w.type !== 1 && d < w.r) { if (p.k === 4) boom(p); return true; } }
   if (p.k === 7) {   // railgun: pierces everything once, planets stop it
     const ot = teamOf(p.o);
@@ -782,7 +855,7 @@ function projHit(p) {
   const ot = teamOf(p.o);
   for (const s of G.ships) {
     if (!s.alive || teamOf(s.i) === ot) continue;
-    if (Math.hypot(s.x - p.x, s.y - p.y) < s.rad + pr) { if (p.k === 4) boom(p); else { hurt(s, p.dmg, p.o, p.x, p.y); if (p.emp) s.emp = Math.max(s.emp, p.emp); } return true; }
+    if (Math.hypot(s.x - p.x, s.y - p.y) < s.rad + pr) { if (p.k === 4) boom(p); else { hurt(s, p.dmg, p.o, p.x, p.y); if (p.emp) s.emp = Math.max(s.emp, p.emp); if (p.slow) s.slow = Math.max(s.slow || 0, p.slow); if (p.kb) { const sp = Math.hypot(p.vx, p.vy) || 1; s.vx += p.vx / sp * p.kb; s.vy += p.vy / sp * p.kb; } } return true; }
   }
   for (const n of G.neut) if (!n.dead && n.type !== 5 && n.type !== 7 && !(n.type === 6 && teamOf(n.ow) === ot) && Math.hypot(n.x - p.x, n.y - p.y) < n.rad + pr) { if (p.k === 4) boom(p); else hurtNeut(n, p.dmg, p.x, p.y, p.o); return true; }
   for (const a of G.ast) if (!a.dead && Math.hypot(a.x - p.x, a.y - p.y) < a.r + pr) { if (p.k === 4) boom(p); else hurtAst(a, p.dmg, p.x, p.y); return true; }
@@ -819,6 +892,7 @@ function updateNeut(n, dt) {
   if (n.type === 6) {   // escort: sails in formation around its owner (or the owner's wreck while they respawn); behaviour depends on class
     const o = G.ships[n.ow]; if (!o || (!o.alive && G.cond === 'last')) { n.dead = true; return; }
     if (n.ttl != null && (n.ttl -= dt) <= 0) { n.dead = true; ev('x', n.x, n.y, 30); return; }
+    if (n.stat) { turretUpdate(n, dt); return; }
     const C = ECLS[n.cls || 0], fl = G.neut.filter(m => m.type === 6 && m.ow === n.ow && !m.dead), idx = Math.max(0, fl.indexOf(n)), ring = Math.floor(idx / 4), inRing = Math.min(4, fl.length - ring * 4);
     const a = G.t * (0.6 - 0.1 * ring) + (idx - ring * 4) * 6.283 / Math.max(1, inRing) + ring, rr = 95 + 50 * ring, tx = o.x + Math.cos(a) * rr, ty = o.y + Math.sin(a) * rr, dx = tx - n.x, dy = ty - n.y, d = Math.hypot(dx, dy) || 1, sp = Math.min(340, d * 3);
     n.vx += (dx / d * sp - n.vx) * Math.min(1, 3 * dt); n.vy += (dy / d * sp - n.vy) * Math.min(1, 3 * dt); n.x += n.vx * dt; n.y += n.vy * dt;
@@ -1136,7 +1210,7 @@ function publish(now) {
       s.dp.reduce((m, v, j) => m | v << j, 0), s.emp > 0 ? 1 : 0, s.boost > 0 ? 1 : 0, s.thr, Math.floor(s.scrap), s.level, s.pending, s.offers,
       s.sk.map(p => (p < 0 ? 0 : r0(s.cd[p] * 10))), s.sk, s.kills, r0(s.respT * 10), s.slow > 0 ? 1 : 0, s.br.join(''), flagsOf(s), s.streak]),
     sh: G.shares.map(v => r0(v * 1000)),
-    n: G.neut.map(n => [n.id, n.type, r0(n.x), r0(n.y), +n.ang.toFixed(2), r0(n.hp), r0(n.hpMax), n.rad, n.ow, r0((n.res || 0) * 100), n.cls || 0, n.conv ? 1 : 0]),
+    n: G.neut.map(n => [n.id, n.type, r0(n.x), r0(n.y), +n.ang.toFixed(2), r0(n.hp), r0(n.hpMax), n.rad, n.ow, r0((n.res || 0) * 100), n.cls || 0, n.conv ? 1 : 0, n.stat ? r0((n.ttl || 0) * 10) : 0, n.stat ? (n.tbr || 0) + 4 * (n.tlv || 1) : 0]),
     a: (G.pubK = (G.pubK || 0) + 1) % 8 === 1 ? G.ast.filter(a => a.vx === undefined).map(astRow) : undefined,   // static rocks: only ~2x per second
     ad: G.ast.filter(a => a.vx !== undefined).map(astRow),   // drifting debris: every snapshot
     p: G.proj.map(p => [p.k, p.o, r0(p.x), r0(p.y), r0(p.vx), r0(p.vy)]),
@@ -1221,6 +1295,8 @@ function botControl(s, dt) {
     else if (p === RAIL) on = fight && dd < 1000 && ad < 0.15; else if (p === GRV) on = fight && dd < 600 && dd > 200; else if (p === PUL) on = fight && dd < 230;
     else if (p === CLK) on = flee || (fight && dd > 450 && dd < 900 && Math.random() < 0.03); else if (p === OD) on = fight && dd < 520; else if (p === AEG) on = G.proj.some(q => q.o !== s.i && (q.o < 0 || teamOf(q.o) !== team) && q.k !== 7 && dist(q, s) < 280);
     else if (p === NAN) on = s.hp < s.hpMax * 0.6 && G.t - s.lastHit < 6; else if (p === ARC) on = fight && dd < 520; else if (p === FLT) on = fight && dd < 800;
+    else if (p === SCT) on = fight && dd < 230; else if (p === SIP) on = fight && dd < 480 && !s.sip; else if (p === TUR) on = fight && dd < 650;
+    else if (p === CHR) on = s.hp < s.hpMax * 0.45 && G.t - s.lastHit < 2.5;
     I['s' + j] = on ? 1 : 0;
   }
 }
@@ -1234,7 +1310,7 @@ function decode(w, at) {
       pending: a[18], offers: a[19], cd: a[20].map(v => v / 10), sk: a[21], kills: a[22], rs: (a[23] || 0) / 10, slow: a[24] || 0,
       br: (a[25] || '').split('').map(Number), fl: a[26] | 0, cloak: a[26] & 1, aegis: a[26] & 2, od: a[26] & 4, amb: a[26] & 8, streak: a[27] | 0 })),
     shares: w.sh.map(v => v / 1000),
-    neut: w.n.map(a => ({ id: a[0], type: a[1], x: a[2], y: a[3], ang: a[4], hp: a[5], hpMax: a[6], rad: a[7], ow: a[8] == null ? -1 : a[8], res: Math.max(0, (a[9] || 0) / 100), cls: a[10] || 0, conv: a[11] || 0 })),
+    neut: w.n.map(a => ({ id: a[0], type: a[1], x: a[2], y: a[3], ang: a[4], hp: a[5], hpMax: a[6], rad: a[7], ow: a[8] == null ? -1 : a[8], res: Math.max(0, (a[9] || 0) / 100), cls: a[10] || 0, conv: a[11] || 0, ttl: (a[12] || 0) / 10, tbr: (a[13] || 0) & 3, tlv: (a[13] || 0) >> 2 })),
     ast: (w.a || (C && C.sa) || []).concat(w.ad || []).map(a => ({ id: a[0], x: a[1], y: a[2], r: a[3], hp: a[4], hpMax: a[5], k: a[6] || 0 })),
     proj: w.p.map(a => ({ k: a[0], o: a[1], x: a[2], y: a[3], vx: a[4], vy: a[5] })),
     pick: w.k.map(a => ({ t: a[0], x: a[1], y: a[2] })), mines: w.m.map(a => ({ x: a[0], y: a[1], fac: a[2], r: a[3], life: a[4], arm: a[5], ms: a[6] || [] })),
@@ -1299,8 +1375,17 @@ function predict(dt, inp) {
 const K = {}, cv = $('cv'), ctx = cv.getContext('2d');
 let CW = 1, CH = 1, DPR = 1, JOY = null, myTg = '', LASTM = null, SKP = [0, 0, 0], VIEWNOW = null;
 let LOWQ = false, EMA = 0.016, SA = { t: 0, r: 0, b: 0, l: 0 };
+// adaptive quality: 2 = full, 1 = 1x resolution + no decorations, 0 = 0.75x resolution + fewer particles/backdrop layers. Steps down when the frame rate sags, tries back up after a calm half minute.
+const QFORCE = (location.search.match(/[?&]q=([012])/) || [])[1];
+let QUAL = QFORCE != null ? +QFORCE : 2, QT = 0, QDOWN = 0, GSTART = 0; const QFAIL = [0, 0, 0, 0];
+function setQual(q) {
+  QUAL = q; LOWQ = q < 2; resize();
+  if (ART2) { try { Art2.fx.setCap([120, 240, 400][q]); if (Art2.bg) Art2.bg.q = q; } catch (e) {} }
+}
+let VX0 = 0, VY0 = 0, VX1 = 0, VY1 = 0;   // visible world rect (set every frame): everything outside it is skipped, the arena is ~100x the screen
+const vis = (x, y, r) => x + r > VX0 && x - r < VX1 && y + r > VY0 && y - r < VY1;
 function readSafe() { try { const cs = getComputedStyle($('safe')); SA = { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0, b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 }; } catch (e) {} }
-function resize() { DPR = LOWQ ? 1 : Math.min(1.5, devicePixelRatio || 1); CW = innerWidth; CH = innerHeight; cv.width = CW * DPR; cv.height = CH * DPR; readSafe(); }
+function resize() { DPR = QUAL === 2 ? Math.min(1.5, devicePixelRatio || 1) : QUAL === 1 ? 1 : 0.75; CW = innerWidth; CH = innerHeight; cv.width = CW * DPR; cv.height = CH * DPR; readSafe(); }
 addEventListener('resize', resize); resize();
 function layout() {
   const br = clamp(Math.min(CW, CH) * 0.09, 28, 46), Rr = CW - SA.r, Bb = CH - SA.b;
@@ -1415,6 +1500,10 @@ function processEvents2(list) {
       else if (t === 'A') { const src = VIEWNOW && VIEWNOW.ships[r]; ZAPS.push({ x1: src ? src.x : x, y1: src ? src.y : y, x2: x, y2: y, until: performance.now() + 320 }); SX('shock', 1400); if (!LOWQ) Art2.fx.spawn('spark', x, y, {}); }
       else if (t === 'V') { WFLASH = 1; SHAKE = Math.max(SHAKE, 8); SX('boomL', 3000); }
       else if (t === 'n') { if (Math.floor(r / 10) === myi) addLog(r % 10 === 1 ? 'Not enough scrap to hire this ship' : 'Fleet full — level up for more slots'); }
+      else if (t === 'B') { SX('scatter', 1100); const a = r / 100, c = Math.cos(a), sn = Math.sin(a); for (let k = 0; k < 3; k++) Art2.fx.spawn('spark', x + c * 16, y + sn * 16, { ang: a, col: '#ffd9a0' }); Art2.fx.spawn('shockwave', x + c * 40, y + sn * 40, { r: 46, col: '#ffd9a0' }); }
+      else if (t === 'S') { const nw = performance.now(), q = SIPS.find(z => z.s === r); if (q) { q.tx = x; q.ty = y; q.until = nw + 420; } else SIPS.push({ s: r, tx: x, ty: y, until: nw + 420 }); SX('siphon', 900); }
+      else if (t === 'a') { const src = VIEWNOW && VIEWNOW.neut.find(m => m.id === r); ZAPS.push({ x1: src ? src.x : x, y1: src ? src.y : y, x2: x, y2: y, until: performance.now() + 320 }); SX('shock', 1000); if (!LOWQ) Art2.fx.spawn('spark', x, y, {}); }
+      else if (t === 'C') { SX('chrono', 1400); Art2.fx.spawn('shockwave', x, y, { r: 120, col: '#7affc8' }); Art2.fx.spawn('emp', x, y, { r: 70 }); }
       else if (t === 'g') { SX('railCharge', 1200); TELE.push({ x, y, a: r / 100, until: performance.now() + 450 }); }
     }
   } catch (e) { if (!window.__artErr) { window.__artErr = e.message; console.error('Art2 events', e); } }
@@ -1558,7 +1647,49 @@ function drawRaider(n) {
   ctx.strokeStyle = '#ff4d4d'; ctx.globalAlpha = 0.45; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(n.x, n.y, 22, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
   if (n.hp < n.hpMax) { ctx.fillStyle = '#0009'; ctx.fillRect(n.x - 15, n.y - 28, 30, 3); ctx.fillStyle = '#ff7a7a'; ctx.fillRect(n.x - 15, n.y - 28, 30 * n.hp / n.hpMax, 3); }
 }
+function drawTurret(n) {   // deployed Sentry Turret: team-ringed hex base, barrel/pod/coil head by branch, life ring
+  const col = PL[n.ow] ? facC(n.ow) : '#9fe8ff', mine = PL[n.ow] && PL[n.ow].fac === myFac(), br = n.tbr | 0, life = clamp(n.ttl / (14 + 2 * (n.tlv || 1)), 0, 1);
+  ctx.save(); ctx.translate(n.x, n.y);
+  ctx.strokeStyle = mine ? RELC[1] : RELC[2]; ctx.globalAlpha = 0.16; ctx.lineWidth = 1.5; ctx.setLineDash([6, 8]); ctx.beginPath(); ctx.arc(0, 0, br === 1 ? 720 : 500, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+  ctx.globalAlpha = 1;
+  if (Art2.glow) Art2.glow(ctx, 0, 0, 40, Art2.rgba ? Art2.rgba(col, 0.5) : col, 0.45);
+  const g = ctx.createRadialGradient(-5, -6, 2, 0, 0, 20); g.addColorStop(0, '#8a96ab'); g.addColorStop(1, '#1b2130'); ctx.fillStyle = g;
+  ctx.beginPath(); for (let i = 0; i < 6; i++) ctx.lineTo(Math.cos(i * 1.047) * 18, Math.sin(i * 1.047) * 18); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.rotate(n.ang);
+  if (br === 2) {   // tesla coil
+    ctx.fillStyle = '#2b3347'; ctx.fillRect(-4, -5, 14, 10); ctx.strokeStyle = '#9fd0ff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(8, -7); ctx.lineTo(18, -3); ctx.moveTo(8, 7); ctx.lineTo(18, 3); ctx.stroke();
+    ctx.fillStyle = '#e6f6ff'; ctx.beginPath(); ctx.arc(14, 0, 4 + Math.sin(TT * 14) * 0.8, 0, 7); ctx.fill(); if (Art2.glow) Art2.glow(ctx, 14, 0, 18, 'rgba(120,190,255,0.9)', 0.7);
+  } else if (br === 1) {   // missile pods
+    ctx.fillStyle = '#39425a'; ctx.fillRect(-2, -11, 20, 7); ctx.fillRect(-2, 4, 20, 7); ctx.fillStyle = '#ffb347'; ctx.fillRect(14, -10, 4, 5); ctx.fillRect(14, 5, 4, 5);
+  } else {   // twin beam barrels
+    ctx.fillStyle = '#39425a'; ctx.fillRect(2, -7, 22, 4); ctx.fillRect(2, 3, 22, 4); ctx.fillStyle = '#ff8f2e'; ctx.fillRect(22, -7, 3, 4); ctx.fillRect(22, 3, 3, 4);
+  }
+  ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0, 0, 6, 0, 7); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.beginPath(); ctx.arc(-1.5, -2, 2.4, 0, 7); ctx.fill();
+  ctx.rotate(-n.ang);
+  ctx.strokeStyle = col; ctx.globalAlpha = 0.85; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(0, 0, 25, -Math.PI / 2, -Math.PI / 2 + life * 6.283); ctx.stroke(); ctx.lineCap = 'butt'; ctx.globalAlpha = 1;
+  if (n.hp < n.hpMax) { ctx.fillStyle = '#0009'; ctx.fillRect(-16, 30, 32, 3); ctx.fillStyle = mine ? '#5ee07a' : '#ff7a7a'; ctx.fillRect(-16, 30, 32 * clamp(n.hp / n.hpMax, 0, 1), 3); }
+  ctx.restore();
+}
+function drawSiphons(V) {   // Siphon Beam tether: wavy green/violet ribbon with energy motes flowing from the victim to the caster
+  const nw = performance.now(); if (!SIPS.length) return;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (let i = SIPS.length - 1; i >= 0; i--) {
+    const q = SIPS[i]; if (q.until < nw) { SIPS.splice(i, 1); continue; }
+    const sh = V.ships[q.s]; if (!sh || !sh.alive) continue;
+    const f = Math.min(1, (q.until - nw) / 200), dx = q.tx - sh.x, dy = q.ty - sh.y, L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L, seg = Math.max(6, Math.floor(L / 28)), tt = nw / 1000;
+    for (let pass = 0; pass < 2; pass++) {
+      ctx.beginPath();
+      for (let k = 0; k <= seg; k++) { const u = k / seg, w = Math.sin(u * Math.PI) * (10 + 4 * pass) * Math.sin(tt * 9 + u * 11 + pass * 2), x = sh.x + dx * u + nx * w, y = sh.y + dy * u + ny * w; k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+      ctx.strokeStyle = pass ? 'rgba(220,255,200,0.9)' : 'rgba(150,255,120,0.4)'; ctx.globalAlpha = f * (pass ? 0.9 : 0.55); ctx.lineWidth = pass ? 1.6 : 7; ctx.stroke();
+    }
+    ctx.globalAlpha = f; for (let k = 0; k < 6; k++) { const u = 1 - ((tt * 1.3 + k / 6) % 1); Art2.glow(ctx, sh.x + dx * u, sh.y + dy * u, 9, 'rgba(190,255,150,0.95)', 0.9); }
+    Art2.glow(ctx, q.tx, q.ty, 26, 'rgba(120,255,140,0.7)', 0.6 * f);
+  }
+  ctx.restore();
+}
 function drawShipNeut(n) {   // stranded ship (type 5) and rescued escort (type 6)
+  if (n.type === 6 && n.cls === 5) return drawTurret(n);
   const esc = n.type === 6, col = esc && PL[n.ow] ? facC(n.ow) : '#9aa6b8', C = ECLS[n.cls || 0];
   const a = { id: 200 + n.id, x: n.x, y: n.y, ang: n.ang, vx: 0, vy: 0, lv: CLV[n.cls || 0], col, seed: n.id, thr: esc ? 0.6 : 0, boost: 0, fire: 0, hit: 0, hpf: esc ? n.hp / n.hpMax : 0.35, shf: 0, emp: esc ? 0 : 1, alive: true, zoom: FZ };
   let ok = false; if (ART2) ok = A2(() => Art2.ship.draw(ctx, a, TT));
@@ -1631,7 +1762,67 @@ function drawProj(p, tt) {
 }
 function bar(x, y, w, h, f, c) { ctx.fillStyle = '#0009'; ctx.fillRect(x, y, w, h); ctx.fillStyle = c; ctx.fillRect(x, y, w * clamp(f, 0, 1), h); }
 
-const SKSND = { [MIS]: 'missile', [TOR]: 'torpedo', [DRN]: 'drone', [MIN]: 'mine', [DSH]: 'dash', [GRV]: 'gravity', [CLK]: 'warp', [OD]: 'dash', [AEG]: 'shield', [NAN]: 'pickup', [ARC]: 'shock', [FLT]: 'warp' };
+const SKSND = { [SCT]: 'scatter', [SIP]: 'siphon', [TUR]: 'turret', [CHR]: 'chrono', [MIS]: 'missile', [TOR]: 'torpedo', [DRN]: 'drone', [MIN]: 'mine', [DSH]: 'dash', [GRV]: 'gravity', [CLK]: 'warp', [OD]: 'dash', [AEG]: 'shield', [NAN]: 'pickup', [ARC]: 'shock', [FLT]: 'warp' };
+// ---- screen-space polish: baked vignettes, parallax space dust, engine trails, animated menu backdrop
+const mkCv = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+let VIG = null, VIGR = null, VIGW = 0, VIGH = 0;
+function vignettes() {   // rebuilt on resize: a dark edge vignette and a red "low hull" one, drawn with a single blit each
+  if (VIG && VIGW === CW && VIGH === CH) return;
+  VIGW = CW; VIGH = CH; const w = 256, h = Math.max(64, Math.round(256 * CH / CW));
+  const mk = (stops) => { const c = mkCv(w, h), g = c.getContext('2d'), r = g.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.3, w / 2, h / 2, Math.hypot(w, h) * 0.55); stops.forEach(([o, col]) => r.addColorStop(o, col)); g.fillStyle = r; g.fillRect(0, 0, w, h); return c; };
+  VIG = mk([[0, 'rgba(0,0,0,0)'], [0.6, 'rgba(0,0,6,0.12)'], [1, 'rgba(0,0,8,0.62)']]);
+  VIGR = mk([[0, 'rgba(255,30,30,0)'], [0.55, 'rgba(255,30,30,0.18)'], [1, 'rgba(255,20,20,0.85)']]);
+}
+const DUST = Array.from({ length: 56 }, () => ({ x: Math.random(), y: Math.random(), z: 0.5 + Math.random() * 1.1, a: 0.12 + Math.random() * 0.3 }));
+let DCAM = null;
+function drawDust(cam, Z, dt) {   // foreground motes that streak along the camera's motion: sells speed and depth
+  if (!DCAM) DCAM = { x: cam.x, y: cam.y, vx: 0, vy: 0 };
+  const k = Math.min(1, 6 * dt); DCAM.vx += ((cam.x - DCAM.x) / Math.max(dt, 0.001) - DCAM.vx) * k; DCAM.vy += ((cam.y - DCAM.y) / Math.max(dt, 0.001) - DCAM.vy) * k; DCAM.x = cam.x; DCAM.y = cam.y;
+  const sp = Math.hypot(DCAM.vx, DCAM.vy) * Z, len = Math.min(46, sp * 0.045);
+  ctx.save(); ctx.lineCap = 'round'; ctx.strokeStyle = '#cfe3ff'; ctx.fillStyle = '#cfe3ff';
+  for (const d of DUST) {
+    const x = (((d.x * CW - cam.x * Z * d.z) % CW) + CW) % CW, y = (((d.y * CH - cam.y * Z * d.z) % CH) + CH) % CH, a = d.a * (0.6 + 0.4 * Math.min(1, sp / 160));
+    ctx.globalAlpha = a;
+    if (len > 3) { ctx.lineWidth = 0.7 + d.z * 0.5; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + DCAM.vx / (sp || 1) * len * d.z, y + DCAM.vy / (sp || 1) * len * d.z); ctx.stroke(); }
+    else ctx.fillRect(x, y, 1.2 * d.z, 1.2 * d.z);
+  }
+  ctx.restore();
+}
+const TRAILS = [];
+function drawTrail(s, r, col, boosting) {   // tapered additive ribbon behind a thrusting ship; thick and bright during an afterburner dash
+  const T = TRAILS[s.i] || (TRAILS[s.i] = { p: [], t: 0 }), sp = Math.hypot(s.vx, s.vy), max = (LOWQ ? 7 : 14) * 2;
+  T.t += FDT;
+  if (T.t > 0.03) { T.t = 0; if (sp > 25 && (s.thr || boosting)) T.p.push(s.x - Math.cos(s.ang) * r * 0.9, s.y - Math.sin(s.ang) * r * 0.9); else if (T.p.length) T.p.splice(0, 2); if (T.p.length > max) T.p.splice(0, T.p.length - max); }
+  const m = T.p.length / 2; if (m < 2) return;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+  for (let k = 1; k < m; k++) {
+    const u = k / m;
+    ctx.globalAlpha = u * u * (boosting ? 0.75 : 0.3); ctx.strokeStyle = col; ctx.lineWidth = r * (boosting ? 0.9 : 0.5) * u + 0.5;
+    ctx.beginPath(); ctx.moveTo(T.p[2 * k - 2], T.p[2 * k - 1]); ctx.lineTo(T.p[2 * k], T.p[2 * k + 1]); ctx.stroke();
+  }
+  ctx.restore();
+}
+const MENUSH = [0, 1, 2].map(i => ({ id: 900 + i, lv: [[2, 3, 1, 2, 0, 1, 0, 0, 0, 1, 0, 0, 0], [1, 1, 2, 3, 1, 0, 0, 1, 0, 0, 0, 0, 1], [3, 2, 3, 1, 0, 2, 1, 0, 1, 0, 0, 0, 0]][i], col: PC8[[0, 1, 3][i]], seed: i * 5 + 1, ph: i * 2.1 }));
+function drawMenuBg(now) {   // lobby / menu: the live space backdrop with a few ships cruising past
+  const t = now / 1000, W = cv.width, H = cv.height;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const cam = { x: Math.cos(t * 0.05) * 600 + t * 12, y: Math.sin(t * 0.04) * 380, zoom: 0.7, w: CW, h: CH };
+  if (!(B2.draw && A2(() => B2.draw(ctx, cam, t, 0)))) { ctx.fillStyle = '#05070f'; ctx.fillRect(0, 0, CW, CH); }
+  if (!ART2 || QUAL < 1) return;
+  const Z = Math.min(CW, CH) / 600 * 1.3;
+  ctx.setTransform(DPR * Z, 0, 0, DPR * Z, DPR * (CW / 2 - cam.x * Z), DPR * (CH / 2 - cam.y * Z));
+  FDT = 0.016; FZ = Z; TT = t;
+  MENUSH.forEach((m, i) => {
+    const u = ((t * 0.045 + m.ph / 6.3) % 1), ang = -0.35 + i * 0.12, d = (u - 0.5) * 2 * 1500, y0 = (i - 1) * 190;
+    const x = cam.x + Math.cos(ang) * d - Math.sin(ang) * y0, y = cam.y + Math.sin(ang) * d + Math.cos(ang) * y0, bob = Math.sin(t * 0.9 + m.ph) * 8;
+    const sh = SHA[m.id] || (SHA[m.id] = {}); Object.assign(sh, { id: m.id, x, y: y + bob, ang: ang + Math.sin(t * 0.6 + m.ph) * 0.05, vx: 120, vy: 0, lv: m.lv, col: m.col, seed: m.seed, thr: 1, boost: 0, fire: 0, hit: 0, hpf: 1, shf: 0.8, emp: 0, alive: true, zoom: Z });
+    A2(() => { Art2.ship.draw(ctx, sh, t); });
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+    for (let k = 0; k < 10; k++) { ctx.globalAlpha = (1 - k / 10) * 0.35; ctx.strokeStyle = m.col; ctx.lineWidth = 7 * (1 - k / 10); ctx.beginPath(); ctx.moveTo(x - Math.cos(ang) * (26 + k * 22), y + bob - Math.sin(ang) * (26 + k * 22)); ctx.lineTo(x - Math.cos(ang) * (26 + k * 22 + 22), y + bob - Math.sin(ang) * (26 + k * 22 + 22)); ctx.stroke(); }
+    ctx.restore();
+  });
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); vignettes(); ctx.drawImage(VIG, 0, 0, CW, CH);
+}
 let SKPREV = [0, 0, 0], OFFN = 0;
 function uiSounds(M) {
   if (!window.SFX || !M || !M.alive) { OFFN = 0; return; }
@@ -1645,10 +1836,13 @@ function uiSounds(M) {
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - (frame.last || now)) / 1000); frame.last = now;
-  EMA += (dt - EMA) * 0.04;
-  if (!LOWQ && EMA > 0.027 && now > 5000 && S.mode === 'game') { LOWQ = true; resize(); }   // slow device: drop to 1x resolution and skip decorative effects
+  EMA += (dt - EMA) * 0.03;
+  if (S.mode === 'game' && QFORCE == null && now > QT && now - GSTART > 4000) {
+    if (EMA > 0.026 && QUAL > 0) { QFAIL[QUAL]++; QDOWN = now; QT = now + 3500; setQual(QUAL - 1); }   // sustained slow frames: drop a tier
+    else if (EMA < 0.0185 && QUAL < 2 && QFAIL[QUAL + 1] < 2 && now - QDOWN > 30000) { QT = now + 6000; setQual(QUAL + 1); }
+  }
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#05070f'; ctx.fillRect(0, 0, cv.width, cv.height);
-  if (S.mode !== 'game') return;
+  if (S.mode !== 'game') { drawMenuBg(now); return; }
   let V, me;
   if (S.host) {
     if (!G) return;
@@ -1665,9 +1859,12 @@ function frame(now) {
   if (fo) { if (!R.cam) R.cam = { x: fo.x, y: fo.y }; const k = fo === M ? 1 : Math.min(1, 6 * dt); R.cam.x += (fo.x - R.cam.x) * k; R.cam.y += (fo.y - R.cam.y) * k; }
   if (!R.cam) return;
   const Z = zoomOf(), cam = R.cam, tt = now / 1000; FDT = dt; FZ = Z; TT = tt;
+  VX0 = cam.x - CW / 2 / Z; VX1 = cam.x + CW / 2 / Z; VY0 = cam.y - CH / 2 / Z; VY1 = cam.y + CH / 2 / Z;
+  if (ART2) Art2.fx.setView(VX0, VY0, VX1, VY1);
   if (SHAKE > 0.3) { cam.x += (Math.random() - 0.5) * SHAKE; cam.y += (Math.random() - 0.5) * SHAKE; } SHAKE *= Math.exp(-9 * dt); FLASH = Math.max(0, FLASH - dt * 2.2); WFLASH = Math.max(0, WFLASH - dt * 1.4);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   if (!(B2.draw && A2(() => B2.draw(ctx, { x: cam.x, y: cam.y, zoom: Z, w: CW, h: CH }, tt, V.layout || 0)))) for (const st of stars) { const x = (((st.x * CW - cam.x * st.z * Z) % CW) + CW) % CW, y = (((st.y * CH - cam.y * st.z * Z) % CH) + CH) % CH; ctx.fillStyle = `rgba(200,215,255,${0.25 + st.z})`; ctx.fillRect(x, y, st.z * 3, st.z * 3); }
+  if (QUAL > 0) drawDust(cam, Z, dt);
   ctx.setTransform(DPR * Z, 0, 0, DPR * Z, DPR * (CW / 2 - cam.x * Z), DPR * (CH / 2 - cam.y * Z));
   ctx.textAlign = 'center';
   // danger zone + wells
@@ -1676,6 +1873,7 @@ function frame(now) {
     ctx.strokeStyle = '#ff4d4d'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, 0, V.z, 0, 7); ctx.stroke();
   }
   for (const w of V.wells) {
+    if (!vis(w.x, w.y, (w.gr || w.r) + 50)) continue;
     if (ART2 && w.life > 0) { try { Art2.fx.gravityWell(ctx, w, tt); } catch (e) {} drawBombTelegraph(w); continue; }   // gravity bomb
     if (w.type === 0 && W2.planet && A2(() => W2.planet(ctx, w, tt))) continue;
     if (w.type === 2 && W2.star && A2(() => W2.star(ctx, w, tt))) continue;
@@ -1685,20 +1883,23 @@ function frame(now) {
     else if (w.type === 1) { const g = ctx.createRadialGradient(w.x, w.y, w.r * 0.3, w.x, w.y, w.r * 3); g.addColorStop(0, '#000'); g.addColorStop(0.35, '#2b0a55'); g.addColorStop(1, 'rgba(80,20,160,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(w.x, w.y, w.r * 3, 0, 7); ctx.fill(); ctx.strokeStyle = '#c9a0ff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(w.x, w.y, w.r * 1.2 + Math.sin(tt * 3) * 3, 0, 7); ctx.stroke(); }
     else { const g = ctx.createRadialGradient(w.x - w.r * 0.3, w.y - w.r * 0.3, 5, w.x, w.y, w.r); g.addColorStop(0, '#6a7aa8'); g.addColorStop(1, '#232a45'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(w.x, w.y, w.r, 0, 7); ctx.fill(); }
   }
-  for (const n of V.nebs) { if (W2.nebula && A2(() => W2.nebula(ctx, n, tt))) continue; const g = ctx.createRadialGradient(n.x, n.y, n.r * 0.2, n.x, n.y, n.r); g.addColorStop(0, 'rgba(150,90,220,0.38)'); g.addColorStop(1, 'rgba(90,40,160,0.05)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, 7); ctx.fill(); ctx.strokeStyle = 'rgba(190,140,255,0.35)'; ctx.lineWidth = 2; ctx.setLineDash([4, 10]); ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
+  for (const n of V.nebs) { if (!vis(n.x, n.y, n.r * 1.35)) continue; if (W2.nebula && A2(() => W2.nebula(ctx, n, tt))) continue; const g = ctx.createRadialGradient(n.x, n.y, n.r * 0.2, n.x, n.y, n.r); g.addColorStop(0, 'rgba(150,90,220,0.38)'); g.addColorStop(1, 'rgba(90,40,160,0.05)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, 7); ctx.fill(); ctx.strokeStyle = 'rgba(190,140,255,0.35)'; ctx.lineWidth = 2; ctx.setLineDash([4, 10]); ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
   for (const h of V.haz || []) {   // radiation clouds
+    if (!vis(h.x, h.y, h.r + 20)) continue;
     const g = ctx.createRadialGradient(h.x, h.y, h.r * 0.25, h.x, h.y, h.r); g.addColorStop(0, 'rgba(150,255,60,0.05)'); g.addColorStop(0.75, 'rgba(150,255,60,0.15)'); g.addColorStop(1, 'rgba(170,255,70,0.3)');
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, 7); ctx.fill();
     ctx.strokeStyle = '#b6ff4d'; ctx.globalAlpha = 0.5; ctx.lineWidth = 3; ctx.setLineDash([14, 12]); ctx.lineDashOffset = tt * 14; ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, 7); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = '#d4ff7a'; ctx.globalAlpha = 0.28 + 0.12 * Math.sin(tt * 2 + h.x); ctx.font = 'bold 44px system-ui'; ctx.textAlign = 'center'; ctx.fillText('☢', h.x, h.y + 15); ctx.globalAlpha = 1;
   }
   for (const f of V.fields || []) {   // repair / toxic fields
+    if (!vis(f.x, f.y, f.r + 10)) continue;
     const col = f.k ? '#c779ff' : '#5ee07a', fr = f.f != null ? f.f : clamp(f.life / f.max, 0, 1), g = ctx.createRadialGradient(f.x, f.y, f.r * 0.2, f.x, f.y, f.r);
     g.addColorStop(0, col + '10'); g.addColorStop(1, col + '55'); ctx.fillStyle = g; ctx.globalAlpha = 0.5 + 0.5 * fr; ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, 7); ctx.fill();
     ctx.strokeStyle = PL[fieldFac(f)] ? facC(fieldFac(f)) : col; ctx.lineWidth = 3; ctx.globalAlpha = 0.7; ctx.setLineDash([8, 8]); ctx.lineDashOffset = -tt * 20; ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, 7); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = col; ctx.globalAlpha = 0.6; if (!f.k) { ctx.fillRect(f.x - 4, f.y - 18, 8, 36); ctx.fillRect(f.x - 18, f.y - 4, 36, 8); } ctx.globalAlpha = 1;
   }
   for (const st of V.streams) {
+    if (st.bb && (st.bb[2] < VX0 || st.bb[0] > VX1 || st.bb[3] < VY0 || st.bb[1] > VY1)) continue;
     drawStreamFlow(st, tt); continue;
     const dx = st.x2 - st.x1, dy = st.y2 - st.y1, len = Math.hypot(dx, dy);
     ctx.save(); ctx.translate(st.x1, st.y1); ctx.rotate(Math.atan2(dy, dx)); ctx.fillStyle = 'rgba(80,200,255,0.10)'; ctx.fillRect(0, -st.w, len, st.w * 2);
@@ -1711,8 +1912,9 @@ function frame(now) {
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(io.x, io.y, io.r, 0, 7); ctx.fill(); ctx.strokeStyle = '#d6c8ff'; ctx.lineWidth = 2;
     for (let k = 0; k < 6; k++) { const a = k * 1.05 + Math.floor(tt * 6) * 1.7, r1 = io.r * (0.3 + 0.6 * ((k * 0.37) % 1)); ctx.beginPath(); ctx.moveTo(io.x + Math.cos(a) * r1, io.y + Math.sin(a) * r1); ctx.lineTo(io.x + Math.cos(a + 0.3) * (r1 + 40), io.y + Math.sin(a + 0.3) * (r1 + 40)); ctx.lineTo(io.x + Math.cos(a + 0.1) * (r1 + 80), io.y + Math.sin(a + 0.1) * (r1 + 80)); ctx.stroke(); }
   }
-  for (const p of V.portals) { if (W2.portal && A2(() => W2.portal(ctx, p, tt))) continue; ctx.strokeStyle = '#77ffff'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(p.x, p.y, 38, 0, 7); ctx.stroke(); ctx.strokeStyle = '#77ffff66'; ctx.beginPath(); ctx.arc(p.x, p.y, 24 + Math.sin(tt * 4) * 5, 0, 7); ctx.stroke(); }
+  for (const p of V.portals) { if (!vis(p.x, p.y, 110)) continue; if (W2.portal && A2(() => W2.portal(ctx, p, tt))) continue; ctx.strokeStyle = '#77ffff'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(p.x, p.y, 38, 0, 7); ctx.stroke(); ctx.strokeStyle = '#77ffff66'; ctx.beginPath(); ctx.arc(p.x, p.y, 24 + Math.sin(tt * 4) * 5, 0, 7); ctx.stroke(); }
   for (const b of V.bea) {
+    if (!vis(b.x, b.y, b.r + 90)) continue;
     if (W2.beacon && A2(() => W2.beacon(ctx, b, tt, { owner: b.owner >= 0 ? FC(b.owner) : null, cap: b.cap >= 0 ? FC(b.cap) : null }))) continue;
     const c = b.owner >= 0 ? FC(b.owner) : '#aabbcc';
     ctx.strokeStyle = c + '88'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7); ctx.stroke();
@@ -1720,19 +1922,22 @@ function frame(now) {
     ctx.fillStyle = b.cont ? '#fff' : c; ctx.beginPath(); ctx.moveTo(b.x, b.y - 16); ctx.lineTo(b.x + 12, b.y); ctx.lineTo(b.x, b.y + 16); ctx.lineTo(b.x - 12, b.y); ctx.fill();
   }
   for (const p of V.pads || []) {
+    if (!vis(p.x, p.y, p.r + 60)) continue;
     const pc = { x: p.x, y: p.y, r: p.r, p: 0, owner: 1, cap: -1, cont: 0 };
     if (!(W2.beacon && A2(() => W2.beacon(ctx, pc, tt, { owner: '#5ee07a', cap: null })))) { ctx.strokeStyle = '#5ee07a'; ctx.lineWidth = 3; ctx.setLineDash([10, 8]); ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
     ctx.fillStyle = '#5ee07a'; ctx.globalAlpha = 0.55 + 0.3 * Math.sin(tt * 3); ctx.fillRect(p.x - 3, p.y - 14, 6, 28); ctx.fillRect(p.x - 14, p.y - 3, 28, 6); ctx.globalAlpha = 1;   // repair cross
   }
-  for (const a of V.ast) { if (a.k === 1) { ctx.fillStyle = 'rgba(255,205,80,0.13)'; ctx.beginPath(); ctx.arc(a.x, a.y, a.r * 1.5 + 4 * Math.sin(tt * 3 + a.id), 0, 7); ctx.fill(); } if (W2.asteroid && A2(() => W2.asteroid(ctx, a, tt))) continue; ctx.beginPath(); for (let i = 0; i < 9; i++) { const rr = a.r * (0.82 + 0.2 * Math.sin(a.id * 7.1 + i * 2.3)); ctx.lineTo(a.x + Math.cos(i * 0.698) * rr, a.y + Math.sin(i * 0.698) * rr); } ctx.closePath(); ctx.fillStyle = '#1d2233'; ctx.fill(); ctx.strokeStyle = '#5b6584'; ctx.lineWidth = 2; ctx.stroke(); }
+  for (const a of V.ast) { if (!vis(a.x, a.y, a.r * 1.6 + 10)) continue; if (a.k === 1) { ctx.fillStyle = 'rgba(255,205,80,0.13)'; ctx.beginPath(); ctx.arc(a.x, a.y, a.r * 1.5 + 4 * Math.sin(tt * 3 + a.id), 0, 7); ctx.fill(); } if (W2.asteroid && A2(() => W2.asteroid(ctx, a, tt))) continue; ctx.beginPath(); for (let i = 0; i < 9; i++) { const rr = a.r * (0.82 + 0.2 * Math.sin(a.id * 7.1 + i * 2.3)); ctx.lineTo(a.x + Math.cos(i * 0.698) * rr, a.y + Math.sin(i * 0.698) * rr); } ctx.closePath(); ctx.fillStyle = '#1d2233'; ctx.fill(); ctx.strokeStyle = '#5b6584'; ctx.lineWidth = 2; ctx.stroke(); }
   for (const c of V.pick) {
+    if (!vis(c.x, c.y, 60)) continue;
     if (c.t === 2) { drawRelic(c); continue; }
     if (W2.scrap && A2(() => W2.scrap(ctx, c, tt))) continue;
     if (c.t === 0) { ctx.fillStyle = '#ffe066'; ctx.beginPath(); ctx.moveTo(c.x, c.y - 6); ctx.lineTo(c.x + 5, c.y); ctx.lineTo(c.x, c.y + 6); ctx.lineTo(c.x - 5, c.y); ctx.fill(); }
     else { ctx.fillStyle = '#12301d'; ctx.strokeStyle = '#5ee07a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(c.x, c.y, 10, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#5ee07a'; ctx.fillRect(c.x - 6, c.y - 1.5, 12, 3); ctx.fillRect(c.x - 1.5, c.y - 6, 3, 12); }
   }
-  for (const d of V.drops) { if (W2.supplyDrop && A2(() => W2.supplyDrop(ctx, d, tt))) continue; ctx.strokeStyle = '#ffe066'; ctx.lineWidth = 3; ctx.globalAlpha = 0.5 + 0.4 * Math.sin(tt * 5); ctx.beginPath(); ctx.arc(d.x, d.y, 50 + Math.sin(tt * 3) * 6, 0, 7); ctx.stroke(); ctx.globalAlpha = 1; }
+  for (const d of V.drops) { if (!vis(d.x, d.y - 100, 300)) continue; if (W2.supplyDrop && A2(() => W2.supplyDrop(ctx, d, tt))) continue; ctx.strokeStyle = '#ffe066'; ctx.lineWidth = 3; ctx.globalAlpha = 0.5 + 0.4 * Math.sin(tt * 5); ctx.beginPath(); ctx.arc(d.x, d.y, 50 + Math.sin(tt * 3) * 6, 0, 7); ctx.stroke(); ctx.globalAlpha = 1; }
   for (const m of V.mines) {   // mine field: area of mines, fades out over its last 2 s
+    if (!vis(m.x, m.y, m.r + 30)) continue;
     drawMineField(m); continue;
     const col = FC(m.fac), fade = clamp(m.life / 2, 0, 1);
     ctx.fillStyle = col; ctx.globalAlpha = 0.1 * fade + 0.04; ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, 7); ctx.fill();
@@ -1740,20 +1945,23 @@ function frame(now) {
     for (let k = 0; k < 9; k++) { const a = k * 2.4, rr = m.r * Math.sqrt((k + 0.5) / 9) * 0.9, px = m.x + Math.cos(a) * rr, py = m.y + Math.sin(a) * rr; ctx.globalAlpha = (0.5 + 0.5 * Math.sin(tt * 6 + k)) * fade; ctx.beginPath(); ctx.moveTo(px, py - 6); ctx.lineTo(px + 5, py + 4); ctx.lineTo(px - 5, py + 4); ctx.fill(); }
     ctx.globalAlpha = 1;
   }
-  for (const n of V.neut) drawNeut(n);
+  for (const n of V.neut) if (vis(n.x, n.y, n.rad * 1.5 + 160)) drawNeut(n);
   if (ART2) {
-    try { for (const p of V.proj) { PO.k = p.k; PO.x = p.x; PO.y = p.y; PO.vx = p.vx; PO.vy = p.vy; PO.col = p.k === 6 || p.o < 0 ? '#ff9a3d' : facC(p.o); Art2.weapons.draw(ctx, PO, tt); } }
+    try { for (const p of V.proj) { if (!vis(p.x, p.y, p.k === 7 ? 450 : 60)) continue; PO.k = p.k; PO.x = p.x; PO.y = p.y; PO.vx = p.vx; PO.vy = p.vy; PO.col = p.k === 6 || p.o < 0 ? '#ff9a3d' : facC(p.o); Art2.weapons.draw(ctx, PO, tt); } }
     catch (e) { if (!window.__artErr) { window.__artErr = e.message; console.error('Art2 weapons', e); } }
-  } else { ctx.globalCompositeOperation = 'lighter'; for (const p of V.proj) drawProj(p, tt); ctx.globalCompositeOperation = 'source-over'; }
+  } else { ctx.globalCompositeOperation = 'lighter'; for (const p of V.proj) if (vis(p.x, p.y, p.k === 7 ? 450 : 60)) drawProj(p, tt); ctx.globalCompositeOperation = 'source-over'; }
   // target reticle
   const tobj = myTg ? (myTg[0] === 's' ? V.ships[+myTg.slice(1)] : myTg[0] === 'n' ? V.neut.find(n => n.id === +myTg.slice(1)) : V.ast.find(a => a.id === +myTg.slice(1))) : null;
   if (tobj && tobj.alive !== false) { const rr = (tobj.rad || tobj.r || radOf(tobj.lv)) + 14; if (!(H2.reticle && A2(() => H2.reticle(ctx, tobj.x, tobj.y, rr, tt)))) { ctx.strokeStyle = '#ffe066'; ctx.lineWidth = 2.5; ctx.setLineDash([8, 6]); ctx.beginPath(); ctx.arc(tobj.x, tobj.y, rr + Math.sin(tt * 6) * 2, 0, 7); ctx.stroke(); ctx.setLineDash([]); } }
   else if (myTg) myTg = '';
   for (const s of V.ships) {
     if (!s.alive) continue;
+    if (!vis(s.x, s.y, (FL(s) & 2) ? 330 : 130)) { FIRE[s.i] = 0; HIT[s.i] = 0; continue; }
     if (!ART2 && s.thr && Math.random() < 0.7) { const b = radOf(s.lv) * 0.7; fx(s.x - Math.cos(s.ang) * b, s.y - Math.sin(s.ang) * b, -s.vx * 0.15 + rnd(-20, 20), -s.vy * 0.15 + rnd(-20, 20), 0.35, s.boost ? '#9cf' : '#ff9a3d', 3); }
+    if (ART2) { const fl2 = FL(s); if (!(fl2 & 1) || s === M || PL[s.i].fac === myFac()) drawTrail(s, radOf(s.lv), facC(s.i), !!s.boost); }
     drawShip(s, s === M);
   }
+  if (ART2) drawSiphons(V);
   { const nb = performance.now();   // laser beams: full line from the shooter to what it hits
     ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
     for (let i = BEAMS.length - 1; i >= 0; i--) {
@@ -1764,6 +1972,7 @@ function frame(now) {
       ctx.beginPath(); ctx.moveTo(sh.x + Math.cos(ang) * rr * 1.1, sh.y + Math.sin(ang) * rr * 1.1); ctx.lineTo(b.x, b.y);
       ctx.strokeStyle = col; ctx.globalAlpha = 0.4 * f; ctx.lineWidth = 9 * th * f + 2; ctx.stroke();
       ctx.strokeStyle = '#ffe3b8'; ctx.globalAlpha = 0.95 * f; ctx.lineWidth = 2.2 * th * f + 0.8; ctx.stroke();
+      if (ART2) { Art2.glow(ctx, b.x, b.y, 14 + 12 * th, 'rgba(255,170,80,0.95)', 0.85 * f); Art2.glow(ctx, sh.x + Math.cos(ang) * rr * 1.1, sh.y + Math.sin(ang) * rr * 1.1, 10 + 6 * th, 'rgba(255,210,150,0.9)', 0.6 * f); }
     }
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.lineCap = 'butt'; }
   { const nz = performance.now();   // arc storm lightning
@@ -1787,6 +1996,9 @@ function frame(now) {
     else { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.97; p.vy *= 0.97; ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s * (0.5 + f), p.s * (0.5 + f)); }
   }
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); vignettes();
+  ctx.globalAlpha = 1; ctx.drawImage(VIG, 0, 0, CW, CH);
+  if (M && M.alive && M.hp < M.hpMax * 0.3) { ctx.globalAlpha = (0.35 + 0.25 * Math.sin(now / 160)) * (1 - M.hp / (M.hpMax * 0.3)) ; ctx.drawImage(VIGR, 0, 0, CW, CH); ctx.globalAlpha = 1; }
   if (!(AH && A2(() => drawHUD2(V, me, M, now)))) drawHUD(V, me, M, now);
 }
 const slotCd = (M, j) => (M.sk[j] < 0 ? 0 : (S.host ? M.cd[M.sk[j]] : M.cd[j]));   // host ships store cooldowns per module, snapshots per slot

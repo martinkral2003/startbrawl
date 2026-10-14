@@ -75,12 +75,13 @@
     // 2. nebula layers (screen blend, low alpha), parallax 0.03 / 0.07
     ctx.globalCompositeOperation = 'screen';
     layer(ctx, B.pats.neb[0], 1024, cx * 0.03, cy * 0.03, w, h, 0.55 + 0.05 * Math.sin(t * 0.07));
-    layer(ctx, B.pats.neb[1], 768, cx * 0.07 + 300, cy * 0.07 + 120, w, h, 0.4 + 0.05 * Math.sin(t * 0.09 + 2));
+    if (A.bg.q !== 0) layer(ctx, B.pats.neb[1], 768, cx * 0.07 + 300, cy * 0.07 + 120, w, h, 0.4 + 0.05 * Math.sin(t * 0.09 + 2));
     // 3. distant galaxy (layout 0) / planet silhouette, very slow parallax (0.02)
     ctx.globalCompositeOperation = 'source-over';
     const R = Math.min(w, h) * 0.16 + 30, span = w + R * 4;
     const px = mod(w * 0.74 - cx * 0.02 + R * 2, span) - R * 2, py = h * 0.27 - cy * 0.02 * 0.5;
-    if (L === 0) {
+    if (A.bg.q === 0) { /* low quality: skip the distant galaxy / planet */ }
+    else if (L === 0) {
       ctx.save(); ctx.translate(px, py); ctx.rotate(-0.5); ctx.scale(1, 0.32);
       const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 1.5);
       g.addColorStop(0, `rgba(${look.gal},0.22)`); g.addColorStop(0.25, `rgba(${look.gal},0.09)`); g.addColorStop(1, `rgba(${look.gal},0)`);

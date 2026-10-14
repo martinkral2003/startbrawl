@@ -3,7 +3,7 @@
   const A = window.Art2 = window.Art2 || {};
   const H = A.hud = A.hud || {};
   const TAU = Math.PI * 2;
-  const MODCOL = H.MODCOL = ['#c8d0e0', '#ff6b6b', '#66ccff', '#99eeff', '#69db7c', '#ffa94d', '#ffd43b', '#b197fc', '#ff8787', '#74c0fc', '#99ffff', '#ffb870', '#e599f7', '#a9b8ff', '#ff6a4d', '#7fd8ff', '#8cf0a0', '#fff07a', '#ffb3e6'];
+  const MODCOL = H.MODCOL = ['#c8d0e0', '#ff6b6b', '#66ccff', '#99eeff', '#69db7c', '#ffa94d', '#ffd43b', '#b197fc', '#ff8787', '#74c0fc', '#99ffff', '#ffb870', '#e599f7', '#a9b8ff', '#ff6a4d', '#7fd8ff', '#8cf0a0', '#fff07a', '#ffb3e6', '#ffb347', '#d96bff', '#9fe8ff', '#7affc8'];
   const FONT = 'system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
   const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 
@@ -104,6 +104,29 @@
     // 18 FLT: three ships in formation
     (c) => {
       for (const [x, y] of [[0.5, 0], [-0.35, -0.5], [-0.35, 0.5]]) { c.beginPath(); c.moveTo(x + 0.45, y); c.lineTo(x - 0.35, y + 0.3); c.lineTo(x - 0.15, y); c.lineTo(x - 0.35, y - 0.3); c.closePath(); c.fill(); }
+    },
+    // 19 SCT: pellet cone
+    (c) => {
+      c.beginPath(); c.arc(-0.72, 0, 0.2, 0, TAU); c.fill();
+      for (const a of [-0.6, 0, 0.6]) { c.beginPath(); c.moveTo(-0.52, 0); c.lineTo(Math.cos(a) * 0.5, Math.sin(a) * 0.5); c.stroke(); c.beginPath(); c.arc(Math.cos(a) * 0.82, Math.sin(a) * 0.82, 0.14, 0, TAU); c.fill(); }
+    },
+    // 20 SIP: tether draining a target into the caster
+    (c) => {
+      c.beginPath(); c.arc(-0.66, 0, 0.3, 0, TAU); c.fill(); c.beginPath(); c.arc(0.66, 0, 0.3, 0, TAU); c.stroke();
+      c.beginPath(); c.moveTo(0.34, 0); c.bezierCurveTo(0.16, -0.55, -0.08, 0.55, -0.32, 0); c.stroke();
+      c.beginPath(); c.moveTo(-0.32, 0); c.lineTo(-0.1, -0.2); c.moveTo(-0.32, 0); c.lineTo(-0.1, 0.2); c.stroke();
+    },
+    // 21 TUR: hex turret with barrel
+    (c) => {
+      c.beginPath(); for (let i = 0; i < 6; i++) { const a = i * TAU / 6, x = Math.cos(a) * 0.62, y = Math.sin(a) * 0.62; i ? c.lineTo(x, y) : c.moveTo(x, y); }
+      c.closePath(); c.globalAlpha *= 0.35; c.fill(); c.globalAlpha /= 0.35; c.stroke();
+      c.fillRect(0.05, -0.14, 0.85, 0.28); c.beginPath(); c.arc(0, 0, 0.22, 0, TAU); c.fill();
+    },
+    // 22 CHR: rewinding clock
+    (c) => {
+      c.beginPath(); c.arc(0, 0, 0.78, 0.45, TAU - 0.9); c.stroke();
+      c.beginPath(); c.moveTo(0.7, 0.34); c.lineTo(0.5, 0.08); c.moveTo(0.7, 0.34); c.lineTo(0.98, 0.14); c.stroke();
+      c.beginPath(); c.moveTo(0, -0.45); c.lineTo(0, 0); c.lineTo(0.3, 0.16); c.stroke();
     }
   ];
 

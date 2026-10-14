@@ -28,59 +28,84 @@
     rocks.set(a.id, d);
     return d;
   }
-  W.asteroid = function (ctx, a, t) {
-    const d = rockData(a), r = a.r, rot = d.rot0 + d.spd * t, pts = d.pts;
-    const la = A.LIGHT - rot, lx = Math.cos(la), ly = Math.sin(la);
-    ctx.save();
-    ctx.translate(a.x, a.y); ctx.rotate(rot); ctx.scale(r, r);
-    ctx.beginPath();
+  // Rocks are baked once into a sprite (re-baked when their damage stage changes) and just blitted + slowly spun afterwards;
+  // only the twinkling ore glints are drawn live. Palette varies per rock; rich rocks get gold veins, debris is rust-grey.
+  const PALS = [
+    ['#b4aaa0', '#7a706a', '#3d3733', '#1b1816'],   // warm basalt
+    ['#a9b0b8', '#6c7480', '#363c46', '#16191f'],   // cool iron
+    ['#b8a592', '#85705a', '#46382b', '#1c1612'],   // sandstone
+    ['#9aa4a6', '#5f6b6e', '#2f3a3d', '#121819']    // slate
+  ];
+  const rockSpr = new Map(), STAGE = [1, 0.8, 0.57, 0.32, 0.1];
+  const stageOf = f => (f >= 0.92 ? 0 : f >= 0.7 ? 1 : f >= 0.45 ? 2 : f >= 0.2 ? 3 : 4);
+  function bakeRock(a, d, stage) {
+    const r = a.r, sc = Math.min(1.5, 170 / r), side = Math.ceil(r * 2.7 * sc), cv = document.createElement('canvas'); cv.width = cv.height = side;
+    const g = cv.getContext('2d'), rot = d.rot0, pts = d.pts, la = A.LIGHT - rot, lx = Math.cos(la), ly = Math.sin(la), pal = a.k === 2 ? PALS[2] : PALS[(a.id | 0) & 3], rich = a.k === 1;
+    g.translate(side / 2, side / 2); g.rotate(rot); g.scale(r * sc, r * sc);
+    g.beginPath();
     for (let i = 0; i < pts.length; i++) {
       const p = pts[i], q = pts[(i + 1) % pts.length], mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2;
-      if (i === 0) ctx.moveTo((pts[pts.length - 1][0] + p[0]) / 2, (pts[pts.length - 1][1] + p[1]) / 2);
-      ctx.quadraticCurveTo(p[0], p[1], mx, my);
+      if (i === 0) g.moveTo((pts[pts.length - 1][0] + p[0]) / 2, (pts[pts.length - 1][1] + p[1]) / 2);
+      g.quadraticCurveTo(p[0], p[1], mx, my);
     }
-    ctx.closePath();
-    let g = ctx.createRadialGradient(lx * 0.4, ly * 0.4, 0.05, lx * 0.1, ly * 0.1, 1.25);
-    g.addColorStop(0, '#b4aaa0'); g.addColorStop(0.45, '#7a706a'); g.addColorStop(0.8, '#3d3733'); g.addColorStop(1, '#1b1816');
-    ctx.fillStyle = g; ctx.fill();
-    ctx.save(); ctx.clip();
-    const lw = 1 / r; // one pixel in local units
-    // craters
-    for (const c of d.craters) {
-      const cg = ctx.createRadialGradient(c.x - lx * c.r * 0.3, c.y - ly * c.r * 0.3, 0, c.x, c.y, c.r);
+    g.closePath();
+    let gr = g.createRadialGradient(lx * 0.4, ly * 0.4, 0.05, lx * 0.1, ly * 0.1, 1.25);
+    gr.addColorStop(0, pal[0]); gr.addColorStop(0.45, pal[1]); gr.addColorStop(0.8, pal[2]); gr.addColorStop(1, pal[3]);
+    g.fillStyle = gr; g.fill();
+    g.save(); g.clip();
+    const lw = 1 / (r * sc);
+    for (const c of d.craters) {   // craters: dark bowl, lit far wall, shadowed near rim
+      const cg = g.createRadialGradient(c.x - lx * c.r * 0.3, c.y - ly * c.r * 0.3, 0, c.x, c.y, c.r);
       cg.addColorStop(0, 'rgba(18,15,13,0.85)'); cg.addColorStop(0.75, 'rgba(30,26,23,0.65)'); cg.addColorStop(1, 'rgba(60,54,50,0.2)');
-      ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, TAU); ctx.fill();
-      // lit rim: far wall (away from light) is lit inside, near rim catches light outside
-      ctx.lineWidth = Math.max(lw * 1.2, c.r * 0.22); ctx.lineCap = 'round';
-      ctx.strokeStyle = 'rgba(205,195,182,0.55)'; ctx.beginPath(); ctx.arc(c.x, c.y, c.r, la - 1.1, la + 1.1); ctx.stroke();
-      ctx.strokeStyle = 'rgba(10,8,7,0.5)'; ctx.beginPath(); ctx.arc(c.x, c.y, c.r, la + Math.PI - 1, la + Math.PI + 1); ctx.stroke();
+      g.fillStyle = cg; g.beginPath(); g.arc(c.x, c.y, c.r, 0, TAU); g.fill();
+      g.lineWidth = Math.max(lw * 1.2, c.r * 0.22); g.lineCap = 'round';
+      g.strokeStyle = 'rgba(205,195,182,0.55)'; g.beginPath(); g.arc(c.x, c.y, c.r, la - 1.1, la + 1.1); g.stroke();
+      g.strokeStyle = 'rgba(10,8,7,0.5)'; g.beginPath(); g.arc(c.x, c.y, c.r, la + Math.PI - 1, la + Math.PI + 1); g.stroke();
     }
-    // terminator shade on the dark side
-    g = ctx.createLinearGradient(lx, ly, -lx, -ly);
-    g.addColorStop(0, 'rgba(255,240,220,0.10)'); g.addColorStop(0.5, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,10,0.5)');
-    ctx.fillStyle = g; ctx.fillRect(-1.4, -1.4, 2.8, 2.8);
-    // hp cracks
-    const f = a.hpMax > 0 ? Math.max(0, Math.min(1, a.hp / a.hpMax)) : 1;
-    if (f < 0.92) {
-      const n = Math.min(d.cracks.length, Math.ceil((1 - f) * d.cracks.length * 1.1)), grow = Math.min(1, 0.5 + (1 - f));
-      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      for (let pass = 0; pass < 2; pass++) {
-        ctx.strokeStyle = pass ? 'rgba(210,200,185,0.28)' : 'rgba(8,6,5,0.9)';
-        ctx.lineWidth = Math.max(lw * 1.4, 0.035) * (pass ? 0.6 : 1);
-        ctx.beginPath();
-        const off = pass ? lw * 1.1 : 0;
-        for (let i = 0; i < n; i++) {
-          const s = d.cracks[i], m = Math.max(2, Math.round(s.length * grow));
-          ctx.moveTo(s[0][0] - lx * off, s[0][1] - ly * off);
-          for (let j = 1; j < m; j++) ctx.lineTo(s[j][0] - lx * off, s[j][1] - ly * off);
-        }
-        ctx.stroke();
+    if (rich) {   // gold ore veins
+      g.lineCap = 'round'; g.lineJoin = 'round';
+      for (let i = 0; i < 3; i++) {
+        const R = A.rng((a.id | 0) * 31 + i * 7), an = R() * TAU; let x = Math.cos(an) * 0.7, y = Math.sin(an) * 0.7;
+        g.beginPath(); g.moveTo(x, y);
+        for (let j = 0; j < 4; j++) { x += (R() - 0.65) * 0.5 * Math.cos(an) - (R() - 0.5) * 0.25; y += (R() - 0.65) * 0.5 * Math.sin(an) + (R() - 0.5) * 0.25; g.lineTo(x * 0.92, y * 0.92); }
+        g.strokeStyle = 'rgba(255,200,90,0.85)'; g.lineWidth = 0.07; g.stroke(); g.strokeStyle = 'rgba(255,245,200,0.8)'; g.lineWidth = 0.025; g.stroke();
       }
-      if (f < 0.35) { ctx.fillStyle = 'rgba(255,120,40,' + (0.05 + 0.04 * Math.sin(t * 5 + a.id)) + ')'; ctx.fillRect(-1.4, -1.4, 2.8, 2.8); }
     }
-    ctx.restore();
-    // ore glints
-    ctx.globalCompositeOperation = 'lighter';
+    gr = g.createLinearGradient(lx, ly, -lx, -ly);   // terminator shade on the dark side
+    gr.addColorStop(0, 'rgba(255,240,220,0.12)'); gr.addColorStop(0.5, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,10,0.55)');
+    g.fillStyle = gr; g.fillRect(-1.5, -1.5, 3, 3);
+    if (stage > 0) {   // damage cracks
+      const f = STAGE[stage], n = Math.min(d.cracks.length, Math.ceil((1 - f) * d.cracks.length * 1.1)), grow = Math.min(1, 0.5 + (1 - f));
+      g.lineCap = 'round'; g.lineJoin = 'round';
+      for (let pass = 0; pass < 2; pass++) {
+        g.strokeStyle = pass ? 'rgba(210,200,185,0.28)' : 'rgba(8,6,5,0.9)'; g.lineWidth = Math.max(lw * 1.4, 0.035) * (pass ? 0.6 : 1);
+        g.beginPath(); const off = pass ? lw * 1.1 : 0;
+        for (let i = 0; i < n; i++) {
+          const sg = d.cracks[i], m = Math.max(2, Math.round(sg.length * grow));
+          g.moveTo(sg[0][0] - lx * off, sg[0][1] - ly * off);
+          for (let j = 1; j < m; j++) g.lineTo(sg[j][0] - lx * off, sg[j][1] - ly * off);
+        }
+        g.stroke();
+      }
+      if (stage >= 4) { g.fillStyle = 'rgba(255,120,40,0.08)'; g.fillRect(-1.5, -1.5, 3, 3); }
+    }
+    g.restore();
+    g.lineWidth = lw * 1.2; g.strokeStyle = 'rgba(0,0,0,0.35)'; g.stroke();   // thin outline keeps the silhouette crisp against bright nebulae
+    return { c: cv, side, sc, st: stage, r };
+  }
+  W.asteroid = function (ctx, a, t) {
+    const d = rockData(a), r = a.r, f = a.hpMax > 0 ? Math.max(0, Math.min(1, a.hp / a.hpMax)) : 1, st = stageOf(f);
+    let e = rockSpr.get(a.id);
+    if (!e || e.st !== st || Math.abs(e.r - r) > 0.5) {
+      if (rockSpr.size > 320) rockSpr.delete(rockSpr.keys().next().value);
+      e = bakeRock(a, d, st); rockSpr.set(a.id, e);
+    }
+    const spin = d.spd * t * 0.5, h = e.side / e.sc / 2;
+    ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(spin); ctx.drawImage(e.c, -h, -h, h * 2, h * 2); ctx.restore();
+    if (r < 14) return;
+    // live ore glints
+    ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(d.rot0 + spin); ctx.scale(r, r); ctx.globalCompositeOperation = 'lighter';
+    const lw = 1 / r;
     for (const o of d.ores) {
       const tw = 0.55 + 0.45 * Math.sin(t * 2.2 + o.ph), s = o.s;
       ctx.fillStyle = o.c; ctx.globalAlpha = 0.5 + 0.4 * tw;

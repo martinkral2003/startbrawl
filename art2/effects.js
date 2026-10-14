@@ -4,7 +4,7 @@
   const A = window.Art2 = window.Art2 || {};
   const TAU = Math.PI * 2, CAP = 400;
   const K = { FIRE: 0, SMOKE: 1, SPARK: 2, RING: 3, DEB: 4, GLOW: 5, GHOST: 6, LINE: 7, ARC: 8, PLUS: 9, FLASH: 10 };
-  const pool = []; let live = 0, hint = 0;
+  const pool = []; let live = 0, hint = 0, LIM = CAP;
   for (let i = 0; i < CAP; i++) pool.push({ on: false, k: 0, x: 0, y: 0, vx: 0, vy: 0, age: 0, life: 1, s: 1, s2: 1, rot: 0, vr: 0, drag: 0, grow: 0, n: 0, hz: 0, r: 255, g: 255, b: 255, a: 1, seed: 0, c0: '', c1: '', c2: '', v: new Float32Array(6) });
   const R = Math.random, rr = (a, b) => a + (b - a) * R();
   const hash = n => { const s = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return s - Math.floor(s); };
@@ -16,7 +16,7 @@
     else { const t = (u - 0.7) / 0.3; FR = lerp(210, 100, t); FG = lerp(70, 28, t); FB = lerp(20, 14, t); }
   }
   function alloc(k, x, y, vx, vy, life, s, delay) {
-    if (live >= CAP) return null;
+    if (live >= LIM) return null;
     for (let i = 0; i < CAP; i++) {
       const j = (hint + i) % CAP, p = pool[j];
       if (p.on) continue;
@@ -121,11 +121,8 @@
     c.beginPath();
     for (let i = 0; i <= 36; i++) { const a = i / 36 * TAU, q = rad * (1 + amp * Math.sin(a * lobes + ph)); if (i) c.lineTo(x + Math.cos(a) * q, y + Math.sin(a) * q); else c.moveTo(x + q, y); }
   }
-  function puff(c, x, y, r, cr, cg, cb, a, mid) {
-    const g = c.createRadialGradient(x, y, 0, x, y, r), b = `${cr | 0},${cg | 0},${cb | 0}`;
-    g.addColorStop(0, `rgba(${b},${a})`); g.addColorStop(0.5, `rgba(${b},${a * mid})`); g.addColorStop(1, `rgba(${b},0)`);
-    c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill();
-  }
+  const puff = (c, x, y, r, cr, cg, cb, a, mid) => A.puff(c, x, y, r, cr | 0, cg | 0, cb | 0, a, mid);   // cached soft sprite (no per-particle gradient)
+  const V = { x0: -1e9, y0: -1e9, x1: 1e9, y1: 1e9 };   // visible world rect, set by the game each frame; particles outside it are not drawn
   const fx = A.fx = {
     spawn(kind, x, y, opts) { const f = KINDS[kind]; if (f) f(x, y, opts || {}); },
     update(dt) {
@@ -139,6 +136,8 @@
         p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt; if (p.grow) p.s += p.grow * dt;
       }
     },
+    setCap(n) { LIM = Math.max(40, Math.min(CAP, n | 0)); },
+    setView(x0, y0, x1, y1) { V.x0 = x0; V.y0 = y0; V.x1 = x1; V.y1 = y1; },
     clear() { for (let i = 0; i < CAP; i++) pool[i].on = false; live = 0; hint = 0; },
     count() { return live; },
     draw(c) {
@@ -146,6 +145,7 @@
       c.save();
       for (let i = 0; i < CAP; i++) { // pass 1: normal composite (smoke, shaded debris)
         const p = pool[i]; if (!p.on || p.age < 0) continue;
+        { const pd = p.k === K.RING ? p.s2 * 1.25 : p.k === K.LINE ? p.s2 : 140; if (p.x < V.x0 - pd || p.x > V.x1 + pd || p.y < V.y0 - pd || p.y > V.y1 + pd) continue; }
         const u = p.age / p.life;
         if (p.k === K.SMOKE) {
           const w = 1 - Math.min(1, u * 3);
@@ -161,6 +161,7 @@
       c.globalCompositeOperation = 'lighter'; c.lineCap = 'round'; c.lineJoin = 'round';
       for (let i = 0; i < CAP; i++) { // pass 2: additive light
         const p = pool[i]; if (!p.on || p.age < 0) continue;
+        { const pd = p.k === K.RING ? p.s2 * 1.25 : p.k === K.LINE ? p.s2 : 140; if (p.x < V.x0 - pd || p.x > V.x1 + pd || p.y < V.y0 - pd || p.y > V.y1 + pd) continue; }
         const u = p.age / p.life, iu = 1 - u;
         switch (p.k) {
           case K.FIRE: fcol(u); puff(c, p.x, p.y, p.s * (0.5 + 0.9 * Math.sqrt(u)), FR, FG, FB, p.a * iu, 0.55); break;

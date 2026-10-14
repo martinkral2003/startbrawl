@@ -193,7 +193,7 @@
     m('engines', 3, 1); m('armor', 0);
     try { drawHull(c, s, o, P); } catch (e) { c.restore(); }
     m('afterburner', 9); m('repair', 4); m('shield', 2); m('mines', 8); m('drones', 7); m('torpedo', 6);
-    m('missiles', 5); m('gravity', 11); m('shockwave', 12); m('railgun', 10); m('lasers', 1, 1);
+    m('missiles', 5); m('gravity', 11); m('shockwave', 12); m('railgun', 10); m('siphon', 20); m('turretbay', 21); m('chrono', 22); m('lasers', 1, 1); m('scatter', 19);
     try { drawTop(c, s, o, P, t || 0); } catch (e) { c.restore(); }
     try { drawDamage(c, s, o, P, t || 0); } catch (e) { c.restore(); }
     c.restore();
