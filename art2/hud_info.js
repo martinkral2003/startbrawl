@@ -122,16 +122,24 @@
   H.bars = function (c, st, t) {
     st = st || {}; t = num(t, 0);
     const x = num(st.x, 12), y = num(st.y, 12), W = 208, lv = st.lv || [], cc = col(st.col, ACC);
-    const hp = clamp01(st.hpf), hasSh = !!st.hasShield;
-    const hh = 8 + (hasSh ? 14 : 0) + 18 + 12 + 24 + (lv.length > 13 ? 21 : 0);
+    const hp = clamp01(st.hpf), hasSh = !!st.hasShield, hasEn = num(st.enMax, 0) > 0;
+    const rows = Math.ceil(Math.max(13, lv.length) / (lv.length > 13 ? 12 : 13));
+    const hh = 16 + 4 + (hasSh ? 14 : 0) + (hasEn ? 12 : 0) + 8 + 18 + 12 + 24 + (rows - 1) * 21;
     c.save();
     panel(c, x - 8, y - 8, W + 16, hh + 8, 8, cc);
     let yy = y;
+    // header: level badge, hull and energy readouts
+    rr(c, x, yy, 36, 14, 4); c.fillStyle = rgba(ACC, 0.22); c.fill(); c.lineWidth = 1; c.strokeStyle = rgba(ACC, 0.8); c.stroke();
+    text(c, 'LV ' + (num(st.level, 0) + 1), x + 18, yy + 7.5, 10, '#ffe9a8', 'center', 800);
+    text(c, Math.ceil(num(st.hp, 0)) + ' / ' + Math.ceil(num(st.hpMax, 0)), x + 44, yy + 7.5, 10, '#9ff0b0', 'left', 700);
+    if (hasEn) text(c, '⚡ ' + Math.floor(num(st.en, 0)) + ' / ' + Math.floor(num(st.enMax, 0)), x + W, yy + 7.5, 10, '#7ff3e0', 'right', 700);
+    yy += 20;
     const low = hp < 0.3, pulse = low ? 0.7 + 0.3 * Math.sin(t * 8) : 1;
     c.globalAlpha = pulse;
     segBar(c, x, yy, W, 8, hp, low ? '#ff7a6a' : hp < 0.6 ? '#ffd070' : '#8cf0a0', low ? '#c02a2a' : hp < 0.6 ? '#d08a1a' : '#26b866', 14);
     c.globalAlpha = 1; yy += 14;
     if (hasSh) { segBar(c, x, yy, W, 6, st.shf, '#bff0ff', '#2a8fe0', 14); yy += 12; }
+    if (hasEn) { segBar(c, x, yy, W, 6, num(st.en, 0) / num(st.enMax, 1), '#8ffff0', '#0fb8a0', 20); yy += 12; }
     segBar(c, x, yy, W, 4, st.xpf, '#d6b8ff', '#7a5ae0', 20); yy += 11;
     const mx = Math.max(1, Math.min(30, num(st.maxLevel, 0) | 0)), lvl = num(st.level, 0);
     if (st.maxLevel > 0) {
