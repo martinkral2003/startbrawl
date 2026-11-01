@@ -74,7 +74,12 @@
     win:     [1,    (o, v) => { [523, 659, 784, 1047, 1319].forEach((f, i) => { tone(o, f, f, 0.5, 'triangle', 0.17 * v, i * 0.13); tone(o, f * 2, f * 2, 0.4, 'sine', 0.05 * v, i * 0.13); }); }],
     lose:    [1,    (o, v) => { [392, 349, 311, 233].forEach((f, i) => tone(o, f, f * 0.97, 0.55, 'sawtooth', 0.1 * v, i * 0.2)); }],
     zone:    [2,    (o, v) => { for (let i = 0; i < 3; i++) tone(o, 440, 440, 0.12, 'square', 0.09 * v, i * 0.2); }],
+    warnPing: [0.5, (o, v) => { tone(o, 700, 700, 0.1, 'triangle', 0.14 * v); tone(o, 1050, 1050, 0.14, 'triangle', 0.12 * v, 0.09); }],
+    bossWarn: [1,   (o, v) => { tone(o, 55, 36, 1.2, 'sawtooth', 0.3 * v); tone(o, 90, 48, 0.9, 'sine', 0.2 * v, 0.05); noise(o, 0.9, 1200, 150, 0.22 * v, 'bandpass', 0.1); tone(o, 220, 70, 0.5, 'square', 0.1 * v, 0.3); }],
   };
+  // combat sounds nudge the fight "intensity" meter, which the ambient music reads to swell (louder pad + a tense pulse layer)
+  const HEAT = { hit: 0.05, boomS: 0.1, boomM: 0.16, boomL: 0.24, death: 0.32, shock: 0.08, rail: 0.1, missile: 0.06 };
+  let heat = 0;
 
   function play(name, opt) {
     if (!pref.sfx) return;
@@ -84,6 +89,7 @@
     const now = ac.currentTime; if (now - (last[name] || 0) < s[0] || voices > 28) return; last[name] = now;
     const v = opt && opt.v != null ? opt.v : 1; if (v < 0.03) return;
     voices++; setTimeout(() => { voices--; }, 450);
+    if (HEAT[name]) heat = Math.min(1, heat + HEAT[name] * v);
     try { s[1](out(opt && opt.pan), v); } catch (e) {}
   }
 
@@ -92,17 +98,21 @@
   let bar = 0;
   function musicBar() {
     if (!ac || !musOn) return;
-    const o = musBus, t0 = ac.currentTime, root = ROOTS[bar++ % ROOTS.length], len = 6;
+    const o = musBus, t0 = ac.currentTime, root = ROOTS[bar++ % ROOTS.length], len = 6, h = heat;
     [1, 1.5, 2].forEach((m, i) => {
       const os = ac.createOscillator(), g = ac.createGain(), f = ac.createBiquadFilter();
-      os.type = i === 2 ? 'triangle' : 'sawtooth'; os.frequency.value = root * m * (i === 1 ? 1.004 : 1); f.type = 'lowpass'; f.frequency.value = 500;
-      g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(0.05, t0 + 2); g.gain.linearRampToValueAtTime(0.0001, t0 + len + 1);
+      os.type = i === 2 ? 'triangle' : 'sawtooth'; os.frequency.value = root * m * (i === 1 ? 1.004 : 1); f.type = 'lowpass'; f.frequency.value = 500 + h * 900;
+      const pk = 0.05 + h * 0.045;
+      g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(pk, t0 + 2 - h); g.gain.linearRampToValueAtTime(0.0001, t0 + len + 1);
       os.connect(f); f.connect(g); g.connect(o); os.start(t0); os.stop(t0 + len + 1.2);
     });
     for (let i = 0; i < 4; i++) if (Math.random() < 0.7) {
       const f = root * 4 * Math.pow(2, PENT[Math.floor(Math.random() * PENT.length)] / 12), dl = 0.5 + i * 1.4 + Math.random() * 0.6;
-      tone(o, f, f, 1.6, 'sine', 0.05, dl);
+      tone(o, f, f, 1.6, 'sine', 0.05 + h * 0.02, dl);
     }
+    // tense pulse layer: a low heartbeat-like thud that fades in once a fight is hot, in time with the bar
+    if (h > 0.25) { const beats = 2 + Math.round(h * 2); for (let i = 0; i < beats; i++) { const dl = i * (len / beats); tone(o, 70, 50, 0.22, 'sine', 0.06 * h, dl); noise(o, 0.1, 400, 120, 0.05 * h, 'lowpass', dl); } }
+    heat *= 0.55;
   }
   function music(on) {
     musOn = !!on;

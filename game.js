@@ -352,16 +352,16 @@ function startGame(L) {
 // ================================================================ host simulation
 const ev = (t, x, y, r = 0) => { const e = [t, Math.round(x), Math.round(y), Math.round(r)]; G.evPub.push(e); G.evLoc.push(e); };
 const logMsg = t => { G.logPub.push(t); G.logLoc.push(t); };
-const teamOf = i => G.players[i].fac;
+const teamOf = i => i >= 0 ? G.players[i].fac : -9;   // -1 owner = hostile to every faction (world monsters)
 const enemyOf = (s, t) => (isShip(t) ? t.alive && !(t.cloak > 0) && teamOf(t.i) !== teamOf(s.i) : isLive(t) && t.type !== 5 && t.type !== 7 && !(t.type === 6 && teamOf(t.ow) === teamOf(s.i)));
 
 function newGame(L) {
   G = { players: L.players, diff: L.diff || 'normal', mode: MODE, cond: COND, NF: MODE === 'teams' ? 2 : L.players.length, shares: Array(MODE === 'teams' ? 2 : L.players.length).fill(1 / (MODE === 'teams' ? 2 : L.players.length)), t: 0, acc: 0, last: performance.now(), lastPub: 0, pubN: 0, over: false, winner: -1,
     me: L.players.findIndex(p => p.id === S.id), z: R0, ships: [], neut: [], ast: [], proj: [], pick: [], mines: [], drops: [],
     evPub: [], evLoc: [], logPub: [], logLoc: [], nid: 1, spawnT: 0, dropT: ZONE_T0, boss: false, bhs: Math.random() < 0.5 ? 1 : -1, shower: 0, surge: 0, ion: null, showerT: 0,
-    score: Array(MODE === 'teams' ? 2 : L.players.length).fill(0), fields: [], haz: [], flare: 0, evQ: [], lastEv: '', rogue: 0, dread: false };
+    score: Array(MODE === 'teams' ? 2 : L.players.length).fill(0), fields: [], haz: [], flare: 0, evQ: [], lastEv: '', rogue: 0, dread: false, harv: false };
   G.lenF = LENF[LEN] || 1; G.dropT = ZONE_T0 * G.lenF; G.relics = [85, 175, 265, 355, 445].map(t => ({ t: t * G.lenF })); G.cometT = 30 * G.lenF; G.sosT = 0; G.warT = 0;
-  G.evT = 38 * G.lenF; G.bossAt = 110 * G.lenF; G.dreadAt = 170 * G.lenF; G.target = Math.round(70 * G.lenF); G.tlim = 480 * G.lenF;
+  G.evT = 38 * G.lenF; G.bossAt = 110 * G.lenF; G.dreadAt = 170 * G.lenF; G.harvAt = 260 * G.lenF; G.target = Math.round(70 * G.lenF); G.tlim = 480 * G.lenF;
   const np = L.players.length, cnt = [0, 0], tot = [teamCount(L, 0), teamCount(L, 1)];
   L.players.forEach((p, i) => {
     const t = p.team, k = cnt[t]++, side = t ? 1 : -1, ra = i / np * Math.PI * 2;
@@ -374,8 +374,8 @@ function newGame(L) {
       ai: { t: 0, mode: 'roam', tgt: null, goal: null, err: 0, strafe: 1, strT: 0, seed: Math.floor(Math.random() * 3) } };
     makeOffers(s); G.ships.push(s);
   });
-  const LN = ['Classic', 'Asteroid Ring', 'Twin Suns'], mp = new URLSearchParams(location.search).get('map');
-  G.layout = mp != null && LN[+mp] ? +mp : Math.floor(Math.random() * 3);
+  const LN = ['Classic', 'Asteroid Ring', 'Twin Suns', 'Wormhole Nexus'], mp = new URLSearchParams(location.search).get('map');
+  G.layout = mp != null && LN[+mp] ? +mp : Math.floor(Math.random() * 4);
   const planet = (x, y) => ({ type: 0, x: x * R0, y: y * R0, r: 85, gr: 340, g: 280 });
   const hole = () => ({ type: 1, x: 0, y: 0, r: 45, gr: 480, g: 420 });   // gravity hole: slows you, can't kill, always escapable
   const minihole = (x, y) => ({ type: 1, x: x * R0, y: y * R0, r: 34, gr: 380, g: 340 });   // fixed smaller hole
@@ -390,16 +390,21 @@ function newGame(L) {
     G.wells.push(planet(-0.22, 0.1), planet(0.22, -0.1), planet(-0.75, -0.35), planet(0.75, 0.35), planet(0, 0.8), planet(0, -0.8)); G.bh = hole(); G.wells.push(G.bh, minihole(-0.68, 0.45), minihole(0.68, -0.45));
     G.portals = [{ x: -0.2 * R0, y: -0.3 * R0 }, { x: 0.2 * R0, y: 0.3 * R0 }]; neb(0, 0.3, 320); neb(0, -0.3, 320); neb(-0.6, 0, 280); neb(0.6, 0, 280);
     for (let i = 0; i < 70; i++) ringAst();
-  } else {
+  } else if (G.layout === 2) {
     G.wells.push(star(0, -0.3), star(0, 0.3), planet(-0.42, 0.05), planet(0.42, -0.05), planet(-0.8, 0.5), planet(0.8, -0.5), star(-0.72, -0.62), star(0.72, 0.62));
     const w = 0.12 * R0; G.streams.push({ x1: -0.6 * R0, y1: -w, x2: 0.6 * R0, y2: -w, w: 110 }, { x1: 0.6 * R0, y1: w, x2: -0.6 * R0, y2: w, w: 110 });
     neb(-0.5, -0.45, 300); neb(0.5, 0.45, 300); neb(0.1, 0.78, 280); neb(-0.1, -0.78, 280);
+  } else {   // Wormhole Nexus: no central black hole/suns, scattered gravity wells, two crossing wormhole pairs
+    G.wells.push(planet(-0.2, -0.6), planet(0.55, 0.15), planet(-0.7, 0.5), planet(0.15, 0.78), minihole(-0.5, 0.2), minihole(0.3, 0.62), minihole(0.68, -0.4));
+    G.portals = [{ x: -0.62 * R0, y: -0.12 * R0 }, { x: 0.6 * R0, y: 0.5 * R0 }, { x: -0.12 * R0, y: 0.7 * R0 }, { x: 0.5 * R0, y: -0.6 * R0 }];
+    neb(-0.55, -0.55, 280); neb(0.6, 0, 260); neb(0, -0.75, 260);
   }
   logMsg('Map: ' + LN[G.layout]);
   const sl = (x1, y1, cx, cy, x2, y2, w = 120, str = 1) => G.streams.push({ x1: x1 * R0, y1: y1 * R0, cx: cx * R0, cy: cy * R0, x2: x2 * R0, y2: y2 * R0, w, str });
   if (G.layout === 0) { sl(-0.75, -0.7, -0.3, -0.9, 0.1, -0.72, 120, 0.9); sl(0.75, 0.7, 0.3, 0.9, -0.1, 0.72, 120, 0.8); sl(-0.15, 0.45, -0.4, 0, -0.15, -0.45, 100, 0.6); }
   else if (G.layout === 1) { sl(-0.3, -0.05, 0, 0.2, 0.3, -0.05, 110, 0.7); sl(0, -0.95, 0.2, -0.75, 0, -0.55, 110, 0.8); sl(0, 0.95, -0.2, 0.75, 0, 0.55, 110, 0.8); }
-  else { sl(-0.3, -0.8, 0, -0.95, 0.3, -0.8, 140, 0.7); sl(0.3, 0.8, 0, 0.95, -0.3, 0.8, 140, 0.7); }
+  else if (G.layout === 2) { sl(-0.3, -0.8, 0, -0.95, 0.3, -0.8, 140, 0.7); sl(0.3, 0.8, 0, 0.95, -0.3, 0.8, 140, 0.7); }
+  else { sl(-0.55, 0.65, -0.15, 0.3, 0.3, -0.1, 130, 0.75); sl(0.1, -0.7, 0.45, -0.3, 0.6, 0.35, 110, 0.6); }
   G.streams = G.streams.map(buildStream);
   G.pads = [[-0.55, -0.2], [0.55, 0.2]].map(([x, y]) => ({ x: x * R0, y: y * R0, r: 110 }));   // repair relays: heal any ship inside
   G.bea = (G.cond !== 'last' ? [[0, 0], [0, -0.58], [0, 0.58]] : []).map(([x, y]) => ({ x: x * R0, y: y * R0, r: 170, p: 0, owner: -1, cap: -1, cont: 0 }));
@@ -440,9 +445,9 @@ function ringAst() {
   G.ast.push({ id: G.nid++, x: Math.cos(a) * rr, y: Math.sin(a) * rr, r, hp: r * 2.2, hpMax: r * 2.2 });
 }
 function spawnAst(minD) { const p = freeSpot(minD, 0.92); if (!p) return; const r = rnd(16, 40); G.ast.push({ id: G.nid++, x: p.x, y: p.y, r, hp: r * 2.2, hpMax: r * 2.2 }); }
-function spawnNeut(type, minD, cls) {   // 0 scout, 1 hauler, 2 leviathan, 3 sentry, 4 warship, 5 stranded ship, 6 escort, 7 hire outpost, 8 raider, 9 dreadnought
+function spawnNeut(type, minD, cls) {   // 0 scout, 1 hauler, 2 leviathan, 3 sentry, 4 warship, 5 stranded ship, 6 escort, 7 hire outpost, 8 raider, 9 dreadnought, 10 harvester
   const p = type === 2 ? { x: 0, y: -0.25 * G.z } : freeSpot(minD, type === 7 ? 0.6 : 0.85); if (!p) return null;
-  const hp = [30, 140, 1400, 320, 700, 150, 220, 1e9, 90, 3400][type], rad = [13, 26, 70, 22, 36, 18, 18, 34, 13, 90][type];
+  const hp = [30, 140, 1400, 320, 700, 150, 220, 1e9, 90, 3400, 5200][type], rad = [13, 26, 70, 22, 36, 18, 18, 34, 13, 90, 100][type];
   if (type === 5) { cls = cls != null ? cls : [0, 0, 1, 2, 3, 4][Math.floor(Math.random() * 6)]; }
   const n = { id: G.nid++, type, cls: cls || 0, x: p.x, y: p.y, vx: 0, vy: 0, ang: rnd(0, 6.28), hp, hpMax: hp, gx: p.x, gy: p.y, shT: rnd(0, 1), rad, by: -1, ow: -1, res: 0 };
   G.neut.push(n); return n;
@@ -562,18 +567,20 @@ function dropOrbs(x, y, total, n) {
 }
 function hurtNeut(n, dmg, x, y, by) {
   if (n.dead || n.type === 5 || n.type === 7 || (n.type === 6 && by >= 0 && teamOf(by) === teamOf(n.ow))) return;
+  if (n.type === 10) { dmg *= 1 - Math.min(0.5, n.res || 0); n.res = Math.min(0.5, (n.res || 0) + 0.012); n.hitT = G.t; }   // Harvester: adapts to sustained fire (resets if it isn't hit for a bit) — burst damage beats chip damage; n.res (synced to clients) doubles as its resistance 0..0.5 for this type
   n.hp -= dmg; ev('h', x, y, Math.round(dmg)); if (by >= 0) n.by = by;
   if (n.hp > 0) return;
   n.dead = true; ev('x', n.x, n.y, n.rad * 2);
   if (n.type === 6) { if (n.ttl == null) logMsg(`A ${ECLS[n.cls || 0].n} escort was destroyed`); return; }
   const k = n.by >= 0 ? G.ships[n.by] : null, kf = k && k.alive ? teamOf(k.i) : -1;
-  if (n.type === 2 || n.type === 9) {   // bosses: Leviathan and Dreadnought
-    const dn = n.type === 9;
-    dropOrbs(n.x, n.y, dn ? 320 : 220, 10);
+  if (n.type === 2 || n.type === 9 || n.type === 10) {   // bosses: Leviathan, Dreadnought, Harvester
+    const nm = n.type === 10 ? 'Harvester' : n.type === 9 ? 'Dreadnought' : 'Leviathan', ups = n.type === 10 ? 3 : 2, pts = n.type === 10 ? 16 : n.type === 9 ? 12 : 8, orbs = n.type === 10 ? 420 : n.type === 9 ? 320 : 220;
+    dropOrbs(n.x, n.y, orbs, 10);
     for (let i = 0; i < 3; i++) G.pick.push({ id: G.nid++, t: 1, x: n.x + rnd(-40, 40), y: n.y + rnd(-40, 40), v: 0, vx: 0, vy: 0, life: 60 });
-    if (dn) { G.dread = false; G.dreadAt = G.cond === 'last' ? 1e9 : G.t + 150 * G.lenF; } else { G.boss = false; G.bossAt = G.cond === 'last' ? 1e9 : G.t + 140 * G.lenF; }
-    const nm = dn ? 'Dreadnought' : 'Leviathan';
-    if (k && k.alive) { k.pending += 2; makeOffers(k); k.hp = k.hpMax; addScore(kf, dn ? 12 : 8); logMsg(`${G.players[k.i].name} slew the ${nm} and claimed a relic (+2 upgrades${G.cond === 'score' ? ', +' + (dn ? 12 : 8) + ' pts' : ''})!`); }
+    if (n.type === 10) { G.harv = false; G.harvAt = G.cond === 'last' ? 1e9 : G.t + 220 * G.lenF; }
+    else if (n.type === 9) { G.dread = false; G.dreadAt = G.cond === 'last' ? 1e9 : G.t + 150 * G.lenF; }
+    else { G.boss = false; G.bossAt = G.cond === 'last' ? 1e9 : G.t + 140 * G.lenF; }
+    if (k && k.alive) { k.pending += ups; makeOffers(k); k.hp = k.hpMax; addScore(kf, pts); logMsg(`${G.players[k.i].name} slew the ${nm} and claimed a relic (+${ups} upgrades${G.cond === 'score' ? ', +' + pts + ' pts' : ''})!`); }
     else logMsg(`The ${nm} was destroyed`);
   } else {
     dropOrbs(n.x, n.y, n.type === 4 ? 120 : n.type ? 35 : 10, n.type === 4 ? 8 : n.type ? 5 : 2);
@@ -710,7 +717,7 @@ function updateShip(s, dt) {
   if (s.portalT <= 0) {
     for (let k = 0; k < G.portals.length; k++) {
       const p = G.portals[k];
-      if (Math.hypot(s.x - p.x, s.y - p.y) < 40 + s.rad) { const q = G.portals[1 - k]; ev('w', s.x, s.y); s.x = q.x + (s.vx > 0 ? 1 : -1) * 70; s.y = q.y; s.portalT = 2.5; ev('w', s.x, s.y); break; }
+      if (Math.hypot(s.x - p.x, s.y - p.y) < 40 + s.rad) { const q = G.portals[k % 2 === 0 ? k + 1 : k - 1]; ev('w', s.x, s.y); s.x = q.x + (s.vx > 0 ? 1 : -1) * 70; s.y = q.y; s.portalT = 2.5; ev('w', s.x, s.y); break; }
     }
   }
   if (L(CHR) && G.t - (s.hT || 0) >= 0.25) { s.hT = G.t; (s.hist || (s.hist = [])).push({ x: s.x, y: s.y, hp: s.hp, t: G.t }); if (s.hist.length > 30) s.hist.shift(); }   // Chrono Shift: a position/hull sample every 0.25 s
@@ -982,6 +989,16 @@ function updateNeut(n, dt) {
     if (tg && (n.lnT = (n.lnT == null ? 6 : n.lnT) - dt) <= 0) { n.lnT = rage ? 8 : 12; if (G.neut.filter(m => m.type === 8).length < 14) for (let k = 0; k < 2; k++) spawnRaider(n.x + rnd(-80, 80), n.y + rnd(-80, 80)); }
     return;
   }
+  if (n.type === 10) {   // Harvester: relentless hunter (sees the whole arena, ignores gravity) — laser + homing missiles; better run than fight it
+    if (G.t - (n.hitT || 0) > 1.2) n.res = Math.max(0, (n.res || 0) - dt * 0.1);
+    const tg = nearest(G.ships.filter(sh => sh.alive && !(sh.cloak > 0)), n);
+    if (tg) { const d = dist(n, tg) || 1; n.vx += ((tg.x - n.x) / d * 165 - n.vx) * Math.min(1, dt); n.vy += ((tg.y - n.y) / d * 165 - n.vy) * Math.min(1, dt); n.ang = Math.atan2(tg.y - n.y, tg.x - n.x); }
+    else { n.vx *= 0.98; n.vy *= 0.98; }
+    n.x += n.vx * dt; n.y += n.vy * dt;
+    if (tg && dist(n, tg) < 950 && (n.shT -= dt) <= 0) { n.shT = 0.15; fireBeam(n, tg, 10, -1, 1000 + n.id); }
+    if (tg && (n.mT = (n.mT == null ? 4 : n.mT) - dt) <= 0) { n.mT = 5.5; for (let k = 0; k < 3; k++) spawnProj(2, -1, n.x, n.y, n.ang + (k - 1) * 0.3, 300, 6, 20, { tg, turn: 2.4, sp: 300 }); }
+    return;
+  }
   if (n.type === 3) {   // sentry: stationary turret, bursts at the nearest ship in range
     const tg = nearest(G.ships.filter(sh => sh.alive), n, 560);
     if (tg) { n.ang = Math.atan2(tg.y - n.y, tg.x - n.x); if ((n.shT -= dt) <= 0) { n.shT = 1.6; for (let k = -1; k <= 1; k++) spawnProj(5, -1, n.x, n.y, n.ang + k * 0.18, 420, 1.4, 7); } }
@@ -1015,23 +1032,23 @@ function updateNeut(n, dt) {
 }
 
 // ---- random world events (a director picks one every 30-50 s; some warn a few seconds ahead)
-const EVENTS = [['meteor', 30, 2], ['surge', 50, 1.4], ['ion', 60, 1.4], ['flare', 70, 1.4], ['raid', 45, 2], ['rogue', 70, 1], ['convoy', 40, 2], ['rush', 35, 1.5], ['comet', 25, 1]];
+const EVENTS = [['meteor', 30, 2], ['surge', 50, 1.4], ['ion', 60, 1.4], ['flare', 70, 1.4], ['raid', 45, 2], ['rogue', 70, 1], ['convoy', 40, 2], ['rush', 35, 1.5], ['comet', 25, 1], ['flux', 55, 1.3]];
 function spawnRaider(x, y, guard) {
   G.neut.push({ id: G.nid++, type: 8, cls: 0, x, y, vx: 0, vy: 0, ang: rnd(0, 6.28), hp: 90, hpMax: 90, gx: x, gy: y, shT: rnd(0, 1), rad: 13, by: -1, ow: -1, res: 0, guard });
 }
 function spawnDread() {
   const n = spawnNeut(9, 0); if (!n) { G.dread = false; return; }
-  G.drops.push({ x: n.x, y: n.y, t: 30 }); logMsg('☠ A PIRATE DREADNOUGHT has entered the arena — destroy it for a relic!');
+  G.drops.push({ x: n.x, y: n.y, t: 30 }); logMsg('☠ A PIRATE DREADNOUGHT has entered the arena — destroy it for a relic!'); ev('W', n.x, n.y);
 }
 function spawnComet() { const a = rnd(0, 6.28), sx = Math.cos(a) * R0 * 1.1, sy = Math.sin(a) * R0 * 1.1, tx = rnd(-0.4, 0.4) * G.z, ty = rnd(-0.4, 0.4) * G.z; spawnProj(6, -1, sx, sy, Math.atan2(ty - sy, tx - sx), 240, 26, 80); }
 function pickEvent() {
-  const ok = EVENTS.filter(([k, t]) => G.t >= t * G.lenF && k !== G.lastEv && !(k === 'rogue' && G.rogue) && !(k === 'raid' && G.neut.filter(n => n.type === 8).length > 8) && !(k === 'convoy' && G.neut.filter(n => n.type === 5).length >= 3) && !(k === 'flare' && G.flare > 0));
+  const ok = EVENTS.filter(([k, t]) => G.t >= t * G.lenF && k !== G.lastEv && !(k === 'rogue' && G.rogue) && !(k === 'raid' && G.neut.filter(n => n.type === 8).length > 8) && !(k === 'convoy' && G.neut.filter(n => n.type === 5).length >= 3) && !(k === 'flare' && G.flare > 0) && !(k === 'flux' && G.portals.some(p => p.life != null)));
   if (!ok.length) return;
   let r = Math.random() * ok.reduce((a, e) => a + e[2], 0), k = ok[0][0];
   for (const e of ok) { if ((r -= e[2]) <= 0) { k = e[0]; break; } }
   G.lastEv = k;
-  const warn = { meteor: '☄ Meteor shower incoming!', surge: '🌀 Gravity surge incoming — fight the pull!', ion: '⚡ Ion storm approaching!' }[k];
-  if (warn) { logMsg(warn); G.evQ.push({ k, t: 3 }); } else runEvent(k);
+  const warn = { meteor: '☄ Meteor shower incoming!', surge: '🌀 Gravity surge incoming — fight the pull!', ion: '⚡ Ion storm approaching!', flux: '🌌 Unstable wormholes are forming!' }[k];
+  if (warn) { logMsg(warn); ev('N', 0, 0); G.evQ.push({ k, t: 3 }); } else runEvent(k);
 }
 function runEvent(k) {
   if (k === 'meteor') G.shower = 12;
@@ -1057,6 +1074,10 @@ function runEvent(k) {
     if (p) { G.drops.push({ x: p.x, y: p.y, t: 35 }); logMsg('💎 Mining rush — rich asteroid fields detected!'); }
   }
   else if (k === 'comet') { for (let i = 0; i < 3; i++) spawnComet(); logMsg('☄ A comet swarm is crossing the arena!'); }
+  else if (k === 'flux') {
+    const p1 = freeSpot(260, 0.8), p2 = freeSpot(260, 0.8);
+    if (p1 && p2) { G.portals.push({ x: p1.x, y: p1.y, life: 26 }, { x: p2.x, y: p2.y, life: 26 }); logMsg('🌌 A pair of unstable wormholes has opened!'); ev('w', p1.x, p1.y); ev('w', p2.x, p2.y); }
+  }
 }
 function solarFlare() {
   ev('V', 0, 0, 0); let hit = 0;
@@ -1073,6 +1094,10 @@ function stepOnce(dt) {
   for (const w of G.wells) if (w.life != null && w.o != null && w.g > 0) for (const sh of G.ships) if (sh.alive && teamOf(sh.i) !== teamOf(w.o) && Math.hypot(sh.x - w.x, sh.y - w.y) < w.gr * 0.55) sh.slow = Math.max(sh.slow || 0, 0.4);
   for (const w of G.wells) if (w.vx != null) { w.x += w.vx * dt; w.y += w.vy * dt; if (Math.hypot(w.x, w.y) < R0 * 1.1) w.in = 1; }
   G.wells = G.wells.filter(w => { if (w.vx != null && w.in && Math.hypot(w.x, w.y) > R0 * 1.3) { G.rogue = 0; return false; } if (w.life == null) return true; if ((w.life -= dt) > 0) return true; if (w.o != null) collapseWell(w); return false; });
+  if (G.portals.some(p => p.life != null)) {
+    for (const p of G.portals) if (p.life != null) p.life -= dt;
+    if (G.portals.some(p => p.life <= 0)) { for (const p of G.portals) if (p.life != null && p.life <= 0) ev('w', p.x, p.y); G.portals = G.portals.filter(p => p.life == null || p.life > 0); logMsg('🌌 The unstable wormholes collapsed'); }
+  }
   for (const s of G.ships) {
     if (!s.alive) { if (G.cond !== 'last' && (s.respT -= dt) <= 0) respawn(s); continue; }
     s.inv = Math.max(0, s.inv - dt);
@@ -1172,8 +1197,9 @@ function stepOnce(dt) {
     if (G.neut.filter(n => n.type === 5).length < 3 && (G.sosT -= 1.5) <= 0) { const n = spawnNeut(5, 500); if (n) { G.sosT = 32 * G.lenF; logMsg(`📡 Distress signal — a stranded ${ECLS[n.cls].n} needs rescue!`); } }
     if (G.t > 60 * G.lenF && G.neut.filter(n => n.type === 4).length < (G.t > 200 * G.lenF ? 2 : 1) && (G.warT -= 1.5) <= 0) { spawnNeut(4, 600); G.warT = 75 * G.lenF; logMsg('⚠ A pirate warship is patrolling the arena!'); }
   }
-  if (!G.boss && G.t > G.bossAt) { G.boss = true; spawnNeut(2, 0); logMsg('⚠ A LEVIATHAN has appeared near the centre!'); }
+  if (!G.boss && G.t > G.bossAt) { G.boss = true; const n = spawnNeut(2, 0); logMsg('⚠ A LEVIATHAN has appeared near the centre!'); if (n) ev('W', n.x, n.y); }
   if (!G.dread && G.t > G.dreadAt) { G.dread = true; spawnDread(); }
+  if (!G.harv && G.t > G.harvAt) { G.harv = true; const n = spawnNeut(10, 1200); if (n) { G.drops.push({ x: n.x, y: n.y, t: 40 }); logMsg('☢ A HARVESTER has entered the arena — it hits brutally hard and never stops chasing. RUN.'); ev('W', n.x, n.y); } }
   if ((G.evT -= dt) <= 0) { G.evT = rnd(32, 48) * G.lenF; pickEvent(); }
   for (let i = G.evQ.length - 1; i >= 0; i--) if ((G.evQ[i].t -= dt) <= 0) { runEvent(G.evQ[i].k); G.evQ.splice(i, 1); }
   if (G.flare > 0 && (G.flare -= dt) <= 0) solarFlare();
@@ -1324,9 +1350,11 @@ function botControl(s, dt) {
   }
   for (const h of G.haz) { const hd = dist(h, s) || 1; if (hd < h.r + 120) { const k = 1.4 * (1 - hd / (h.r + 120)) + 0.3; tx += (s.x - h.x) / hd * k; ty += (s.y - h.y) / hd * k; } }   // stay out of radiation clouds
   if (G.flare > 0 && ai.mode !== 'hold') { const sh = nearest(G.nebs, s); if (sh) { tx = sh.x - s.x; ty = sh.y - s.y; tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl; } }   // run for cover
+  const harv = G.neut.find(m => m.type === 10), harvNear = harv && dist(harv, s) < 700;
+  if (harvNear) { tx = s.x - harv.x; ty = s.y - harv.y; }   // the Harvester: don't fight it, run
   tl = Math.hypot(tx, ty) || 1;
   I.mx = tl > 1e-6 && (tx || ty) ? tx / tl * d.spd : 0; I.my = tl > 1e-6 && (tx || ty) ? ty / tl * d.spd : 0;
-  const fight = ai.mode === 'fight', flee = s.hp < s.hpMax * 0.35 && dist(nearest(enemyShips(s), s) || { x: 1e9, y: 1e9 }, s) < 450;
+  const fight = ai.mode === 'fight', flee = harvNear || (s.hp < s.hpMax * 0.35 && dist(nearest(enemyShips(s), s) || { x: 1e9, y: 1e9 }, s) < 450);
   for (let j = 0; j < 3; j++) {
     const p = s.sk[j]; let on = 0; const ad = tg ? Math.abs(angDiff(s.ang, Math.atan2(tg.y - s.y, tg.x - s.x))) : 9;
     if (p === MIS) on = fight && dd < 700; else if (p === TOR) on = fight && dd < 480; else if (p === DRN) on = fight && dd < 650;
@@ -1548,6 +1576,8 @@ function processEvents2(list) {
       else if (t === 'a') { const src = VIEWNOW && VIEWNOW.neut.find(m => m.id === r); ZAPS.push({ x1: src ? src.x : x, y1: src ? src.y : y, x2: x, y2: y, until: performance.now() + 320 }); SX('shock', 1000); if (!LOWQ) Art2.fx.spawn('spark', x, y, {}); }
       else if (t === 'C') { SX('chrono', 1400); Art2.fx.spawn('shockwave', x, y, { r: 120, col: '#7affc8' }); Art2.fx.spawn('emp', x, y, { r: 70 }); }
       else if (t === 'g') { SX('railCharge', 1200); TELE.push({ x, y, a: r / 100, until: performance.now() + 450 }); }
+      else if (t === 'N') { if (window.SFX) SFX.play('warnPing', { v: 0.85 }); }
+      else if (t === 'W') { SX('bossWarn', 2600); SHAKE = Math.max(SHAKE, 5); }
     }
   } catch (e) { if (!window.__artErr) { window.__artErr = e.message; console.error('Art2 events', e); } }
 }
@@ -1774,6 +1804,14 @@ function drawNeut(n) {
     if (!ok) { ctx.fillStyle = '#ff3d6e'; ctx.beginPath(); ctx.arc(n.x, n.y, n.rad, 0, 7); ctx.fill(); }
     ctx.fillStyle = '#ffb0c0'; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center'; ctx.fillText('WARSHIP', n.x, n.y - n.rad - 16);
     if (n.hp < n.hpMax) { ctx.fillStyle = '#0009'; ctx.fillRect(n.x - 24, n.y - n.rad - 10, 48, 4); ctx.fillStyle = '#ff7a7a'; ctx.fillRect(n.x - 24, n.y - n.rad - 10, 48 * n.hp / n.hpMax, 4); }
+    return;
+  }
+  if (n.type === 10) {
+    const ok = W2.leviathan && A2(() => W2.leviathan(ctx, n, TT)); if (!ok) { ctx.fillStyle = '#5effa0'; ctx.beginPath(); ctx.arc(n.x, n.y, n.rad, 0, 7); ctx.fill(); }
+    const res = n.res || 0;
+    ctx.strokeStyle = '#5effa0'; ctx.globalAlpha = 0.5 + 0.3 * res; ctx.lineWidth = 3 + res * 6; ctx.setLineDash([14, 8]); ctx.lineDashOffset = -TT * 30; ctx.beginPath(); ctx.arc(n.x, n.y, n.rad + 24, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    ctx.fillStyle = '#baffd6'; ctx.font = 'bold 14px system-ui'; ctx.textAlign = 'center'; ctx.fillText('HARVESTER' + (res > 0.1 ? ' · ADAPTING' : ''), n.x, n.y - n.rad - 32);
+    ctx.fillStyle = '#0009'; ctx.fillRect(n.x - 55, n.y - n.rad - 22, 110, 6); ctx.fillStyle = '#5effa0'; ctx.fillRect(n.x - 55, n.y - n.rad - 22, 110 * n.hp / n.hpMax, 6);
     return;
   }
   const fn = n.type === 0 ? W2.scout : n.type === 1 ? W2.hauler : W2.leviathan;
@@ -2097,7 +2135,7 @@ function drawHUD2(V, me, M, now) {
     const dx = sx - CW / 2, dy = sy - CH / 2, k = Math.min((CW / 2 - m) / Math.abs(dx || 1), (CH / 2 - m) / Math.abs(dy || 1));
     H2.arrow(ctx, CW / 2 + dx * k, CH / 2 + dy * k, Math.atan2(dy, dx), col);
   };
-  if (M && M.alive && cm && H2.arrow) { V.bea.forEach(b => arrow(b.x, b.y, b.owner >= 0 ? FC(b.owner) : '#aabbcc')); V.neut.forEach(n => { if (n.type === 2 || n.type === 4 || n.type === 9) arrow(n.x, n.y, '#ff3d6e'); else if (n.type === 5) arrow(n.x, n.y, n.conv ? '#ffd34d' : '#7fe3ff'); }); V.drops.forEach(d => arrow(d.x, d.y, '#ffe066')); }
+  if (M && M.alive && cm && H2.arrow) { V.bea.forEach(b => arrow(b.x, b.y, b.owner >= 0 ? FC(b.owner) : '#aabbcc')); V.neut.forEach(n => { if (n.type === 2 || n.type === 4 || n.type === 9) arrow(n.x, n.y, '#ff3d6e'); else if (n.type === 10) arrow(n.x, n.y, '#5effa0'); else if (n.type === 5) arrow(n.x, n.y, n.conv ? '#ffd34d' : '#7fe3ff'); }); V.drops.forEach(d => arrow(d.x, d.y, '#ffe066')); }
   if (M && M.alive && cm && H2.arrow) {   // the arena is huge: point at the nearest enemy, and at a hire outpost you can afford
     if (COND !== 'capture' && Math.hypot(M.x, M.y) > V.z) arrow(0, 0, '#ff5a5a');
     if (COND !== 'last') { let b = null, bd = 1e9; V.ships.forEach(o => { if (o.alive && PL[o.i].fac !== myFac() && !(FL(o) & 1)) { const d = Math.hypot(o.x - M.x, o.y - M.y); if (d < bd) { bd = d; b = o; } } }); if (b) arrow(b.x, b.y, '#ff6b6b'); }
@@ -2141,7 +2179,7 @@ function drawHUD(V, me, M, now) {
     ctx.save(); ctx.translate(CW / 2 + dx * k, CH / 2 + dy * k); ctx.rotate(Math.atan2(dy, dx)); ctx.fillStyle = col; ctx.globalAlpha = 0.85;
     ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(-7, -7); ctx.lineTo(-7, 7); ctx.fill(); ctx.restore(); ctx.globalAlpha = 1;
   };
-  if (M && M.alive && cm) { V.bea.forEach(b => arrow(b.x, b.y, b.owner >= 0 ? FC(b.owner) : '#aabbcc')); V.neut.forEach(n => { if (n.type === 2) arrow(n.x, n.y, '#ff3d6e'); }); V.drops.forEach(d => arrow(d.x, d.y, '#ffe066')); }
+  if (M && M.alive && cm) { V.bea.forEach(b => arrow(b.x, b.y, b.owner >= 0 ? FC(b.owner) : '#aabbcc')); V.neut.forEach(n => { if (n.type === 2) arrow(n.x, n.y, '#ff3d6e'); else if (n.type === 10) arrow(n.x, n.y, '#5effa0'); }); V.drops.forEach(d => arrow(d.x, d.y, '#ffe066')); }
   ctx.textAlign = 'center';
   const bw = clamp(CW * 0.34, 200, 340), bx = CW / 2 - bw / 2;
   if (cap) {   // tug-of-war bar: each faction's share of the bar grows as it holds beacons; fill it to win
