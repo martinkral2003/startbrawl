@@ -3,7 +3,7 @@
   const A = window.Art2 = window.Art2 || {};
   const H = A.hud = A.hud || {};
   const TAU = Math.PI * 2;
-  const MODCOL = H.MODCOL = ['#c8d0e0', '#ff6b6b', '#66ccff', '#99eeff', '#69db7c', '#ffa94d', '#ffd43b', '#b197fc', '#ff8787', '#74c0fc', '#99ffff', '#ffb870', '#e599f7', '#a9b8ff', '#ff6a4d', '#7fd8ff', '#8cf0a0', '#fff07a', '#ffb3e6', '#ffb347', '#d96bff', '#9fe8ff', '#7affc8', '#ffe45e', '#ff9d6e', '#8ea6ff', '#8af0ff'];
+  const MODCOL = H.MODCOL = ['#c8d0e0', '#ff6b6b', '#66ccff', '#99eeff', '#69db7c', '#ffa94d', '#ffd43b', '#b197fc', '#ff8787', '#74c0fc', '#99ffff', '#ffb870', '#e599f7', '#a9b8ff', '#ff6a4d', '#7fd8ff', '#8cf0a0', '#fff07a', '#ffb3e6', '#ffb347', '#d96bff', '#9fe8ff', '#7affc8', '#ffe45e', '#ff9d6e', '#8af0ff', '#9df7ff', '#c8ff9f'];
   const FONT = 'system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
   const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 
@@ -137,16 +137,22 @@
       c.beginPath(); c.arc(0, 0, 0.2, 0, TAU); c.fill();
       for (let i = 0; i < 8; i++) { const a = i * TAU / 8; c.beginPath(); c.moveTo(Math.cos(a) * 0.4, Math.sin(a) * 0.4); c.lineTo(Math.cos(a) * 0.68, Math.sin(a) * 0.68); c.stroke(); c.beginPath(); c.arc(Math.cos(a) * 0.86, Math.sin(a) * 0.86, 0.1, 0, TAU); c.fill(); }
     },
-    // 25 TRC: magnet pulling a target in
-    (c) => {
-      c.beginPath(); c.arc(0.1, 0, 0.5, Math.PI * 0.5, Math.PI * 1.5, true); c.stroke();
-      c.fillRect(0.02, -0.62, 0.28, 0.24); c.fillRect(0.02, 0.38, 0.28, 0.24);
-      c.beginPath(); c.arc(-0.78, 0, 0.14, 0, TAU); c.fill(); c.beginPath(); c.moveTo(-0.56, 0); c.lineTo(-0.34, -0.12); c.moveTo(-0.56, 0); c.lineTo(-0.34, 0.12); c.stroke();
-    },
-    // 26 STS: stasis snowflake
+    // 25 STS: stasis snowflake
     (c) => {
       for (let i = 0; i < 3; i++) { const a = i * TAU / 6 + 0.26; c.beginPath(); c.moveTo(Math.cos(a) * 0.82, Math.sin(a) * 0.82); c.lineTo(-Math.cos(a) * 0.82, -Math.sin(a) * 0.82); c.stroke(); }
       c.beginPath(); c.arc(0, 0, 0.3, 0, TAU); c.stroke();
+    },
+    // 26 SEN: sensor ping (directional sweep + blip)
+    (c) => {
+      for (const r of [0.35, 0.65, 0.92]) { c.beginPath(); c.arc(0, 0, r, -0.9, 0.9); c.stroke(); }
+      c.beginPath(); c.moveTo(0, 0); c.lineTo(0.75, -0.5); c.stroke();
+      c.beginPath(); c.arc(0.75, -0.5, 0.1, 0, TAU); c.fill();
+    },
+    // 27 SAL: salvage crate pulling in scrap
+    (c) => {
+      c.beginPath(); c.moveTo(-0.7, 0.15); c.lineTo(0.7, 0.15); c.lineTo(0.55, 0.85); c.lineTo(-0.55, 0.85); c.closePath(); c.globalAlpha *= 0.3; c.fill(); c.globalAlpha /= 0.3; c.stroke();
+      c.beginPath(); c.moveTo(-0.7, 0.15); c.lineTo(0.7, 0.15); c.stroke();
+      for (const [x, y] of [[-0.35, -0.55], [0.1, -0.8], [0.4, -0.35]]) { c.beginPath(); c.arc(x, y, 0.13, 0, TAU); c.fill(); }
     }
   ];
 

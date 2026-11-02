@@ -5,26 +5,28 @@
 
 const NS = 'starbrawl2-4d7a/';
 const BROKER = new URLSearchParams(location.search).get('broker') || 'wss://broker.emqx.io:8084/mqtt';
-const MAXP = 8, R0 = 4600, ZONE_T0 = 75, ZONE_T1 = 360, ZONE_MIN = 140, DT = 1 / 30, MAXLV = 24, NP = 27, DRAG = 0.55;
+const MAXP = 8, R0 = 4600, ZONE_T0 = 75, ZONE_T1 = 360, ZONE_MIN = 140, DT = 1 / 30, MAXLV = 24, NP = 28, DRAG = 0.55, CCMUL = 1.15;
 const TC = ['#ff5a5a', '#4da3ff'], TN = ['RED', 'BLUE'];
 const PC8 = ['#ff5a5a', '#4da3ff', '#5ee07a', '#ffd34d', '#c779ff', '#ff9a3d', '#38e0d0', '#ff7ad1'];
 const BOT_NAMES = ['Nova', 'Vega', 'Orion', 'Lyra', 'Atlas', 'Zeta', 'Kepler', 'Rigel'];
-const [ARM, LAS, SHD, ENG, REP, MIS, TOR, DRN, MIN, DSH, RAIL, GRV, PUL, CLK, OD, AEG, NAN, ARC, FLT, SCT, SIP, TUR, CHR, CAP, FLK, TRC, STS] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26];
+const [ARM, LAS, SHD, ENG, REP, MIS, TOR, DRN, MIN, DSH, RAIL, GRV, PUL, CLK, OD, AEG, NAN, ARC, FLT, SCT, SIP, TUR, CHR, CAP, FLK, STS, SEN, SAL] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27];
 const LENF = { quick: 0.55, normal: 1, long: 1.6 };   // match length factor
 const PARTS = [ // name, desc, tag, active?
   ['Hull Armor', 'more hull, less damage taken', 'AR', 0], ['Lasers', 'more barrels & damage (auto-fire)', 'LS', 0],
-  ['Shield', 'regenerating energy shield', 'SH', 0], ['Engines', 'speed & turning', 'EN', 0],
+  ['Shield', 'regenerating energy shield', 'SH', 0], ['Motor Control', 'the base hull is slow & sluggish — this is what makes it fly', 'MC', 0],
   ['Nano-Repair', 'heals hull over time', 'NR', 0], ['Missiles', 'homing salvo at your target [skill]', 'MS', 1],
   ['Torpedo', 'blast at your target, stuns [skill]', 'TP', 1], ['Drones', 'kamikaze swarm [skill]', 'DR', 1],
-  ['Mine Layer', 'field of mines behind you: blow + slow [skill]', 'MN', 1], ['Afterburner', 'dash: untouchable 0.4 s, rams foes [skill]', 'AB', 1],
+  ['Mine Layer', 'field of mines behind you: blow + slow [skill]', 'MN', 1], ['Afterburner', 'dash: untouchable, cleanses stun/slow, rams foes [skill]', 'AB', 1],
   ['Railgun', 'charged bolt at your target, hits stunned harder [skill]', 'RG', 1], ['Gravity Bomb', 'brief well: pulls + slows foes, then stuns [skill]', 'GB', 1], ['Shockwave', 'stun + slow + push, clears shots [skill]', 'SW', 1],
   ['Cloak Field', 'vanish from enemy targeting; breaks when hit [skill]', 'CL', 1], ['Overdrive', '+35% laser damage & +30% speed for a few seconds [skill]', 'OD', 1],
   ['Aegis Barrier', 'bubble that destroys incoming shots [skill]', 'AG', 1], ['Repair Field', 'healing zone for allies & escorts [skill]', 'NF', 1],
-  ['Arc Storm', 'chain lightning: damages + stuns several foes [skill]', 'AS', 1], ['Reinforcements', 'call temporary escort ships to fight for you [skill]', 'RF', 1],
+  ['Arc Storm', 'chain lightning: damages + stuns several foes [skill]', 'AS', 1], ['Reinforcements', 'summon 1-4 escorts, twice as strong as a normal gunship [skill]', 'RF', 1],
   ['Scatter Cannon', 'point-blank pellet burst: shreds anything close [skill]', 'SC', 1], ['Siphon Beam', 'drain your target and heal yourself [skill]', 'SB', 1],
   ['Sentry Turret', 'deploy an auto-turret that guards the spot [skill]', 'ST', 1], ['Chrono Shift', 'rewind to where you were 4 s ago, recover hull [skill]', 'CS', 1],
-  ['Capacitor', 'emergency burst of shield that also shortens your other skill cooldowns [skill]', 'CP', 1], ['Flak Ring', 'shred everything around you in a ring of pellets [skill]', 'FK', 1],
-  ['Tractor Beam', 'yank your target toward you and slow it [skill]', 'TB', 1], ['Stasis Field', 'slow foes and enemy shots near you [skill]', 'SF', 1],
+  ['Capacitor', 'emergency burst of shield that also shortens your other skill cooldowns [skill]', 'CP', 1], ['Flak Ring', 'long-range ring of pellets in every direction, like a Leviathan strike [skill]', 'FK', 1],
+  ['Stasis Field', 'slow foes and enemy shots near you [skill]', 'SF', 1],
+  ['Sensor Array', 'wider view range; your lasers can only engage what your sensors can see', 'SR', 0],
+  ['Salvage Systems', 'more scrap from kills and pickups', 'SV', 0],
 ];
 // Specialisations: once a part reaches level 3 you may pick ONE of two branches (offered as cards with id 100 + part*2 + variant)
 const BR = [
@@ -46,7 +48,7 @@ const BR = [
   [['Mirror Aegis', 'reflects shots back at foes'], ['Bulwark', 'huge bubble covers allies']],
   [['Resupply Field', 'also restores shields'], ['Toxic Field', 'burns + slows enemies, bigger']],
   [['Tempest', '3 more targets, longer reach'], ['Overload', 'one target: heavy damage + stun']],
-  [['Strike Wing', 'summons 3 gunships'], ['Heavy Cruiser', 'summons a tough frigate']],
+  [['Strike Wing', '+1 extra escort'], ['Heavy Cruiser', 'one very tough frigate instead']],
   [['Slug Thrower', 'one heavy slug: hits hard from range'], ['Shredder', '+5 pellets, wide cone, slows + shoves']],
   [['Vampiric Link', 'heals 100%, overheal becomes shield'], ['Entangling Link', 'slows the target, +25% range']],
   [['Missile Battery', 'turret fires homing missiles from afar'], ['Tesla Tower', 'turret chains lightning through 3 foes']],
@@ -71,7 +73,7 @@ const ITEMS = [
   ['Overdrive Core', '6s of bonus damage & speed, even without Overdrive', 'OC', '#ff9a3d'],
 ];
 const SCORE_KILL = 3;   // score mode: points per ship kill
-const PCOL = ['#c8d0e0', '#ff6b6b', '#6cf', '#9ef', '#69db7c', '#ffa94d', '#ffd43b', '#b197fc', '#ff8787', '#74c0fc', '#9ff', '#ffb870', '#e599f7', '#a9b8ff', '#ff6a4d', '#7fd8ff', '#8cf0a0', '#fff07a', '#ffb3e6', '#ffb347', '#d96bff', '#9fe8ff', '#7affc8', '#ffe45e', '#ff9d6e', '#8ea6ff', '#8af0ff'];
+const PCOL = ['#c8d0e0', '#ff6b6b', '#6cf', '#9ef', '#69db7c', '#ffa94d', '#ffd43b', '#b197fc', '#ff8787', '#74c0fc', '#9ff', '#ffb870', '#e599f7', '#a9b8ff', '#ff6a4d', '#7fd8ff', '#8cf0a0', '#fff07a', '#ffb3e6', '#ffb347', '#d96bff', '#9fe8ff', '#7affc8', '#ffe45e', '#ff9d6e', '#8af0ff', '#9df7ff', '#c8ff9f'];
 const DIFF = {
   easy:   { err: 0.45, react: 0.6, turn: 3, lead: 0,   spd: 0.75, aggr: 0.2 },
   normal: { err: 0.18, react: 0.3, turn: 6, lead: 0.6, spd: 0.95, aggr: 0.5 },
@@ -80,7 +82,7 @@ const DIFF = {
 const PRIO = { easy: [], normal: [SHD, LAS, ARM, MIS, ENG, TOR, REP, RAIL, ARC, FLT, NAN, GRV, DRN, MIN, PUL, DSH, AEG, OD, CLK, SCT, SIP, TUR, CHR], hard: [LAS, SHD, RAIL, MIS, ARM, ARC, TOR, ENG, REP, FLT, OD, GRV, NAN, DRN, MIN, PUL, AEG, DSH, CLK, SCT, SIP, TUR, CHR] };
 function botPrio(diff) {   // upgrade wish-list: solid core first, a random skill taste woven in
   const core = diff === 'hard' ? [LAS, SHD, ARM, ENG, REP] : [SHD, LAS, ARM, ENG, REP];
-  const act = [MIS, TOR, DRN, MIN, DSH, GRV, PUL, CLK, OD, AEG, NAN, ARC, FLT, SCT, SIP, TUR, CHR, CAP, FLK, TRC, STS].sort(() => Math.random() - 0.5);
+  const act = [MIS, TOR, DRN, MIN, DSH, GRV, PUL, CLK, OD, AEG, NAN, ARC, FLT, SCT, SIP, TUR, CHR, CAP, FLK, STS].sort(() => Math.random() - 0.5);
   return [core[0], core[1], act[0], core[2], act[1], core[3], act[2], core[4], ...act.slice(3)];
 }
 const LASER_RANGE = 430;
@@ -100,13 +102,13 @@ const ZS_T0 = 90, ZS_T1 = 330, ZS_MIN = 0.65;   // score mode: the safe zone shr
 const zoneRS = t => { const f = LENF[LEN] || 1, a = ZS_T0 * f, b = ZS_T1 * f; return t < a ? R0 : Math.max(R0 * ZS_MIN, R0 - R0 * (1 - ZS_MIN) * (t - a) / (b - a)); };
 const zoneR = t => { const f = LENF[LEN] || 1, a = ZONE_T0 * f, b = ZONE_T1 * f; return t < a ? R0 : Math.max(ZONE_MIN, R0 - (R0 - ZONE_MIN) * (t - a) / (b - a)); };
 const BRN = (s, p) => (s.lv[p] >= 3 && s.br ? s.br[p] : 0);   // chosen branch of a part (0 = none, 1 = A, 2 = B)
-const stats = s => {
+const stats = s => {   // the bare hull is slow & sluggish by design; Motor Control is what makes it fly (lv3 roughly matches the old baseline)
   const e = eff(s, ENG), ion = BRN(s, ENG) === 1, f = (BRN(s, ARM) === 2 ? 0.92 : 1) * (s.od > 0 ? 1.3 : 1) * (s.cloak > 0 && BRN(s, CLK) === 2 ? 1.2 : 1);
-  return { acc: (480 + 80 * e) * (ion ? 1.25 : 1) * f, vmax: (230 + 35 * e) * (ion ? 1.2 : 1) * f, turn: 4 + 1.5 * e };
+  return { acc: (340 + 130 * e) * (ion ? 1.25 : 1) * f, vmax: (160 + 60 * e) * (ion ? 1.2 : 1) * f, turn: 2 + 2.2 * e };
 };
 const HN = n => n.type <= 4 || n.type >= 8;   // hostile neutral: scouts, haulers, boss, sentries, warships, raiders, dreadnought
 const cdMax = (lv, p) => [0, 0, 0, 0, 0, 6 - 0.4 * lv[MIS], 7 - 0.9 * lv[TOR], 13 - 1.6 * lv[DRN], 9.5 - 0.8 * lv[MIN], 4 - 0.5 * lv[DSH], 6.5 - 0.8 * lv[RAIL], 15 - 1.6 * lv[GRV], 8 - 0.8 * lv[PUL],
-  15 - 2 * lv[CLK], 17 - 2 * lv[OD], 16 - 2 * lv[AEG], 15 - 1.5 * lv[NAN], 8 - 0.9 * lv[ARC], 30 - 3 * lv[FLT], 7 - 0.8 * lv[SCT], 15 - 1.2 * lv[SIP], 20 - 2 * lv[TUR], 21 - 3 * lv[CHR], 26 - 3 * lv[CAP], 9 - 0.9 * lv[FLK], 10 - 1 * lv[TRC], 16 - 1.5 * lv[STS]][p];
+  15 - 2 * lv[CLK], 17 - 2 * lv[OD], 16 - 2 * lv[AEG], 15 - 1.5 * lv[NAN], 8 - 0.9 * lv[ARC], 30 - 3 * lv[FLT], 7 - 0.8 * lv[SCT], 15 - 1.2 * lv[SIP], 20 - 2 * lv[TUR], 21 - 3 * lv[CHR], 26 - 3 * lv[CAP], 9 - 0.9 * lv[FLK], 16 - 1.5 * lv[STS], 0, 0][p];
 const isLive = t => t && !t.dead && t.alive !== false && (t.hp == null || t.hp > 0);
 const isShip = t => t && t.lv != null;
 let GMUL = 1;
@@ -214,7 +216,7 @@ const HOW = [
   ['🕹️', 'Fly', 'Touch and drag on the <b>left half</b> of the screen to steer. A joystick appears under your thumb. On a PC use <b>WASD</b>.<br>Your lasers <b>fire automatically</b> at anything in range.'],
   ['🎯', 'Pick a target', 'Enemies have a <b>red ring</b>, allies a <b>green ring</b>. <b>Tap an enemy</b> to lock it. Lasers, missiles, torpedoes and the railgun aim at your locked target.'],
   ['⚡', 'Use skills', 'The <b>round buttons</b> on the right fire your special weapons. Tap to fire, or <b>drag from a button to aim</b> and let go to cast. On a PC use <b>Space / Q / E</b>.<br>Skills unlock as you pick upgrades.'],
-  ['🧰', 'Pick a playstyle', '17 skills, 3 slots. <b>Hit hard:</b> Missiles, Torpedo, Drones, Mines, Scatter Cannon, Arc Storm, Gravity Bomb. <b>Control:</b> Shockwave, Siphon Beam, Sentry Turret. <b>Survive:</b> Aegis, Repair Field, Cloak, Chrono Shift, Afterburner. <b>Support:</b> Overdrive, Reinforcements.<br>Max a part to level 3 and it can <b>specialise</b> into one of two branches.'],
+  ['🧰', 'Pick a playstyle', '21 skills, 3 slots. <b>Hit hard:</b> Missiles, Torpedo, Drones, Mines, Scatter Cannon, Arc Storm, Gravity Bomb, Flak Ring. <b>Control:</b> Shockwave, Siphon Beam, Sentry Turret, Stasis Field. <b>Survive:</b> Aegis, Repair Field, Cloak, Chrono Shift, Afterburner, Capacitor. <b>Support:</b> Overdrive, Reinforcements.<br>Max a part to level 3 and it can <b>specialise</b> into one of two branches.'],
   ['⬆️', 'Level up', 'Fly through <b>scrap</b> and wreckage to earn upgrades. When cards appear at the top, <b>tap one</b> (or press 1 / 2 / 3). Pick armor, shields, engines or new weapons.<br>Don’t like any of them? <b>Skip</b> (or press 0) to reroll — you drop one level but keep half the scrap toward the next.'],
   ['🏆', 'Win the match', '<b>Score mode</b> (default): every kill scores points, holding <b>beacons</b> trickles more, and you <b>respawn</b> a few seconds after dying. First to the target score, or the leader when time runs out, wins.<br>Other modes: last ship standing inside the <b>shrinking storm</b>, or capture points.'],
   ['🛰️', 'Build a fleet', '<b>Rescue</b> stranded ships (hold still next to an SOS), <b>hire</b> mercenaries at gold <b>outposts</b> with scrap, or call <b>reinforcements</b>. Gunships, frigates, medics, artillery and carriers follow and fight for you.'],
@@ -505,7 +507,7 @@ function skip(s) {   // don't like any offer: drop back one level, keeping half 
   ev('w', s.x, s.y); makeOffers(s);
 }
 function addScrap(s, n) {
-  s.scrap += n;
+  s.scrap += n * (1 + 0.15 * eff(s, SAL));
   while (s.level < MAXLV && s.scrap >= thresh(s.level + 1)) { s.level++; s.pending++; }
   if (s.pending > 0 && !s.offers.length) makeOffers(s);
 }
@@ -520,7 +522,7 @@ function hurt(s, dmg, by, x, y) {
     const a = Math.min(s.sh, dmg); s.sh -= a; dmg -= a; ev('s', x, y, Math.round(a));
     if (s.sh <= 0 && BRN(s, SHD) === 2 && G.t >= s.novaT) {   // Nova Shield: the broken shield bursts and stuns what is near
       s.novaT = G.t + 12; ev('k', s.x, s.y, 190);
-      for (const o of G.ships) if (o.alive && teamOf(o.i) !== teamOf(s.i) && dist(o, s) < 190 + o.rad) { o.emp = Math.max(o.emp, 0.7); const d = dist(o, s) || 1; o.vx += (o.x - s.x) / d * 300; o.vy += (o.y - s.y) / d * 300; }
+      for (const o of G.ships) if (o.alive && teamOf(o.i) !== teamOf(s.i) && dist(o, s) < 190 + o.rad) { o.emp = Math.max(o.emp, 0.7 * CCMUL); const d = dist(o, s) || 1; o.vx += (o.x - s.x) / d * 300; o.vy += (o.y - s.y) / d * 300; }
     }
     if (dmg <= 0) return;
   }
@@ -550,7 +552,7 @@ function killShip(s, by) {
   else logMsg(`${G.players[s.i].name} was lost to the void`);
 }
 function collapseWell(w) {   // end of a gravity bomb: stun + damage everything still inside
-  const lvl = w.lvl || 1, cr = 170 + 15 * lvl, ot = teamOf(w.o), dm = (22 + 7 * lvl) * (w.br === 1 ? 1.8 : w.br === 2 ? 2.2 : 1), stun = Math.max(0, 0.7 + 0.15 * lvl + (w.br === 1 ? 0.6 : w.br === 2 ? -0.2 : 0));
+  const lvl = w.lvl || 1, cr = 170 + 15 * lvl, ot = teamOf(w.o), dm = (22 + 7 * lvl) * (w.br === 1 ? 1.8 : w.br === 2 ? 2.2 : 1), stun = Math.max(0, (0.7 + 0.15 * lvl + (w.br === 1 ? 0.6 : w.br === 2 ? -0.2 : 0)) * CCMUL);
   ev('k', w.x, w.y, cr);
   for (const sh of G.ships) if (sh.alive && teamOf(sh.i) !== ot && Math.hypot(sh.x - w.x, sh.y - w.y) < cr + sh.rad) {
     sh.emp = Math.max(sh.emp, stun); hurt(sh, dm, w.o, sh.x, sh.y);
@@ -617,7 +619,7 @@ function explode(x, y, r, dmg, owner, slowOnly) {
   for (const s of G.ships) {
     if (!s.alive || teamOf(s.i) === ot) continue;
     const d = Math.hypot(s.x - x, s.y - y);
-    if (d < r + s.rad) { if (slowOnly === 'emp') s.emp = Math.max(s.emp, 0.9); else if (slowOnly) s.slow = Math.max(s.slow || 0, 2.2); else s.emp = 1.6; hurt(s, dmg * (1 - 0.4 * Math.min(1, d / r)), owner, s.x, s.y); }
+    if (d < r + s.rad) { if (slowOnly === 'emp') s.emp = Math.max(s.emp, 0.9 * CCMUL); else if (slowOnly) s.slow = Math.max(s.slow || 0, 2.2 * CCMUL); else s.emp = 1.6 * CCMUL; hurt(s, dmg * (1 - 0.4 * Math.min(1, d / r)), owner, s.x, s.y); }
   }
   for (const n of G.neut) if (Math.hypot(n.x - x, n.y - y) < r + n.rad) hurtNeut(n, dmg, n.x, n.y, owner);
   for (const a of G.ast) if (Math.hypot(a.x - x, a.y - y) < r + a.r) hurtAst(a, dmg, a.x, a.y);
@@ -664,8 +666,13 @@ function arcStorm(s, lv, b) {   // instant chain lightning on the nearest foes (
   ev('k', s.x, s.y, 90);
   for (const o of foes.slice(0, n)) {
     ev('A', o.x, o.y, s.i);
-    if (isShip(o)) { o.emp = Math.max(o.emp, b === 2 ? 0.6 : 0.5); hurt(o, dm, s.i, o.x, o.y); } else hurtNeut(o, dm, o.x, o.y, s.i);
+    if (isShip(o)) { o.emp = Math.max(o.emp, (b === 2 ? 0.6 : 0.5) * CCMUL); hurt(o, dm, s.i, o.x, o.y); } else hurtNeut(o, dm, o.x, o.y, s.i);
   }
+}
+function fireDash(s, da, bp, lv) {   // Afterburner: cleanses stun/slow on activation, so it answers CC instead of being neutered by it
+  s.emp = 0; s.slow = 0;
+  if (bp === 2) { ev('w', s.x, s.y); s.x += Math.cos(da) * 480; s.y += Math.sin(da) * 480; s.phase = 0.5; s.ram = null; const dc2 = Math.hypot(s.x, s.y); if (dc2 > R0 + 100) { s.x *= (R0 + 100) / dc2; s.y *= (R0 + 100) / dc2; } ev('w', s.x, s.y); }
+  else { s.boost = 0.4; s.phase = 0.4; s.ram = new Set(); s.dashLv = lv; s.dashA = bp === 1; s.vx += Math.cos(da) * 800; s.vy += Math.sin(da) * 800; }
 }
 function leadAng(s, t, sp) {   // aim at where a moving target will be when a shot of speed sp arrives
   let px = t.x, py = t.y;
@@ -680,7 +687,7 @@ function updateShip(s, dt) {
   if (s.cloak > 0) { s.cloak -= dt; if (s.cloak <= 0) { s.cloak = 0; if (BRN(s, CLK) === 1) s.amb = 4; ev('w', s.x, s.y); } }
   if (s.phase > 0 && s.ram) for (const o of G.ships) {
     if (!o.alive || teamOf(o.i) === teamOf(s.i) || s.ram.has(o.i)) continue;
-    if (Math.hypot(o.x - s.x, o.y - s.y) < s.rad + o.rad + 8) { s.ram.add(o.i); hurt(o, (36 + 15 * (s.dashLv || 1)) * (s.dashA ? 2.2 : 1), s.i, o.x, o.y); o.emp = Math.max(o.emp, 0.5); const d = dist(o, s) || 1; o.vx += (o.x - s.x) / d * (s.dashA ? 700 : 350); o.vy += (o.y - s.y) / d * (s.dashA ? 700 : 350); ev('x', (o.x + s.x) / 2, (o.y + s.y) / 2, 40); }
+    if (Math.hypot(o.x - s.x, o.y - s.y) < s.rad + o.rad + 8) { s.ram.add(o.i); hurt(o, (36 + 15 * (s.dashLv || 1)) * (s.dashA ? 2.2 : 1), s.i, o.x, o.y); o.emp = Math.max(o.emp, 0.5 * CCMUL); const d = dist(o, s) || 1; o.vx += (o.x - s.x) / d * (s.dashA ? 700 : 350); o.vy += (o.y - s.y) / d * (s.dashA ? 700 : 350); ev('x', (o.x + s.x) / 2, (o.y + s.y) / 2, 40); }
   } s.portalT -= dt; s.fireT -= dt;
   const cdk = s.od > 0 && BRN(s, OD) === 2 ? 2 : 1;
   for (let p = 0; p < NP; p++) s.cd[p] = Math.max(0, s.cd[p] - dt * cdk);
@@ -714,7 +721,7 @@ function updateShip(s, dt) {
   const dc = Math.hypot(s.x, s.y);
   if (dc > R0 + 150) { s.x *= (R0 + 150) / dc; s.y *= (R0 + 150) / dc; s.vx *= 0.5; s.vy *= 0.5; }
   if (dc > G.z) { s.hp -= (6 + (dc - G.z) / 80) * dt; if (s.hp <= 0) return killShip(s, -2); }
-  if (inIon) { s.hp -= 10 * dt; s.ionT = (s.ionT || 0) - dt; if (s.ionT <= 0) { s.ionT = 2; s.emp = Math.max(s.emp, 0.5); ev('s', s.x, s.y); } if (s.hp <= 0) return killShip(s, -2); }
+  if (inIon) { s.hp -= 10 * dt; s.ionT = (s.ionT || 0) - dt; if (s.ionT <= 0) { s.ionT = 2; s.emp = Math.max(s.emp, 0.5 * CCMUL); ev('s', s.x, s.y); } if (s.hp <= 0) return killShip(s, -2); }
   for (const h of G.haz) if (Math.hypot(s.x - h.x, s.y - h.y) < h.r) { s.hp -= 9 * dt; s.lastHit = G.t; if (s.hp <= 0) return killShip(s, -2); break; }   // radiation cloud
   for (const w of G.wells) {
     const d = Math.hypot(s.x - w.x, s.y - w.y);
@@ -737,15 +744,20 @@ function updateShip(s, dt) {
   if (L(CHR) && G.t - (s.hT || 0) >= 0.25) { s.hT = G.t; (s.hist || (s.hist = [])).push({ x: s.x, y: s.y, hp: s.hp, t: G.t }); if (s.hist.length > 30) s.hist.shift(); }   // Chrono Shift: a position/hull sample every 0.25 s
   if (s.sip) siphonTick(s, dt);
   // target resolution + auto-fire lasers
+  const lr = LASER_RANGE * sensMul(eff(s, SEN));
   let t = tgtObj(I.tg);
   if (!t || !enemyOf(s, t) || dist(s, t) > 720) t = null;
-  if (!t) t = nearest(enemyShips(s), s, LASER_RANGE) || nearest(G.neut.filter(n => !n.dead && (HN(n) || (n.type === 6 && teamOf(n.ow) !== teamOf(s.i)))), s, 560) || nearest(G.ast.filter(a => !a.big), s, 330);
+  if (!t) t = nearest(enemyShips(s), s, lr) || nearest(G.neut.filter(n => !n.dead && (HN(n) || (n.type === 6 && teamOf(n.ow) !== teamOf(s.i)))), s, 560) || nearest(G.ast.filter(a => !a.big), s, 330);
   s.tgtNow = t;
-  if (s.emp > 0) { s.railQ = null; return; }
+  if (s.emp > 0) {   // stunned: every skill is locked out except Afterburner, which cleanses the stun to escape it
+    const dj = s.sk.indexOf(DSH);
+    if (dj >= 0 && I['s' + dj] && s.cd[DSH] <= 0 && L(DSH)) { s.cd[DSH] = cdMax(s.lv, DSH); fireDash(s, s.ang, BRN(s, DSH), L(DSH)); }
+    else { s.railQ = null; return; }
+  }
   if (s.railQ) { s.railQ.t -= dt; if (s.railQ.t <= 0) { const q = s.railQ; s.railQ = null; spawnProj(7, s.i, s.x + Math.cos(q.a) * s.rad, s.y + Math.sin(q.a) * s.rad, q.a, 1500, 0.8, 70 + 25 * q.lv, { hit: [] }); ev('F', s.x, s.y, s.i); } }
   s.bAcc = t ? Math.min(0.2, (s.bAcc || 0) + dt) : 0;
   if (!t) { s.fT = 0; s.fTg = null; }
-  if (t && s.fireT <= 0 && dist(s, t) < LASER_RANGE + (t.rad || t.r || 0)) {
+  if (t && s.fireT <= 0 && dist(s, t) < lr + (t.rad || t.r || 0)) {
     const l = L(LAS), n = 1 + (l >= 2 ? 1 : 0) + (l >= 3 ? 1 : 0); s.fireT = 0.1;
     if (s.fTg !== t) { s.fTg = t; s.fT = 0; }   // focus: staying on one target ramps the beam up to +80% over 3 s
     s.fT = Math.min(3, (s.fT || 0) + s.bAcc);
@@ -768,7 +780,7 @@ function updateShip(s, dt) {
     const ang0 = aa != null ? aa : (p === TOR || p === SCT) ? tl0 : ta;
     const bp = BRN(s, p);
     if (p === MIS) { const mn = bp === 2 ? 2 : 1 + lv + (bp === 1 ? 3 : 0), md = (12 + 3 * lv) * (bp === 1 ? 0.65 : bp === 2 ? 2.3 : 1); for (let k = 0; k < mn; k++) spawnProj(2, s.i, s.x, s.y, ang0 + (k - (mn - 1) / 2) * 0.3, 340, 3.5, md, { tg: aa != null ? null : t, turn: bp === 2 ? 4 : 3.2, sp: 340 }); }
-    else if (p === DRN) { const dn = 4 + 1.5 * lv + (bp === 1 ? 5 : 0) | 0; for (let k = 0; k < dn; k++) spawnProj(3, s.i, s.x, s.y, aa != null ? aa + rnd(-0.7, 0.7) : rnd(0, 6.28), 230, 10, (8 + 2 * lv) * (bp === 1 ? 0.75 : 1), { turn: 5, sp: 230, emp: bp === 2 ? 0.4 : 0 }); }
+    else if (p === DRN) { const dn = 4 + 1.5 * lv + (bp === 1 ? 5 : 0) | 0; for (let k = 0; k < dn; k++) spawnProj(3, s.i, s.x, s.y, aa != null ? aa + rnd(-0.7, 0.7) : rnd(0, 6.28), 230, 10, (8 + 2 * lv) * (bp === 1 ? 0.75 : 1), { turn: 5, sp: 230, emp: bp === 2 ? 0.4 * CCMUL : 0 }); }
     else if (p === TOR) spawnProj(4, s.i, s.x + Math.cos(ang0) * s.rad, s.y + Math.sin(ang0) * s.rad, ang0, 360, 1.9, (60 + 18 * lv) * (bp === 1 ? 1.4 : 1), { rad: (85 + 18 * lv) * (bp === 1 ? 1.6 : 1), cl: bp === 2 ? 1 : 0 });
     else if (p === MIN) {
       const own = G.mines.filter(m => m.o === s.i); if (own.length >= 2) G.mines.splice(G.mines.indexOf(own[0]), 1);
@@ -777,8 +789,7 @@ function updateShip(s, dt) {
         ms: Array.from({ length: 5 + 3 * lv + (bm === 1 ? 5 : 0) }, () => { const a = rnd(0, 6.28), rr = Math.sqrt(Math.random()) * r; return [Math.cos(a) * rr, Math.sin(a) * rr]; }) });
     } else if (p === DSH) {
       const da = aa != null ? aa : (ml > 0.05 ? Math.atan2(my, mx) : s.ang);
-      if (bp === 2) { ev('w', s.x, s.y); s.x += Math.cos(da) * 480; s.y += Math.sin(da) * 480; s.phase = 0.5; s.ram = null; const dc2 = Math.hypot(s.x, s.y); if (dc2 > R0 + 100) { s.x *= (R0 + 100) / dc2; s.y *= (R0 + 100) / dc2; } ev('w', s.x, s.y); }
-      else { s.boost = 0.4; s.phase = 0.4; s.ram = new Set(); s.dashLv = lv; s.dashA = bp === 1; s.vx += Math.cos(da) * 800; s.vy += Math.sin(da) * 800; }
+      fireDash(s, da, bp, lv);
     }
     else if (p === RAIL) { const fa2 = aa != null ? aa : (t && Math.abs(angDiff(s.ang, ta)) < 0.3 ? ta : s.ang); s.railQ = { t: 0.45, a: fa2, lv }; ev('g', s.x, s.y, Math.round(fa2 * 100)); }   // charge-up is visible to everyone, so it can be dodged
     else if (p === GRV) {   // temporary gravity well: pulls + slows foes, then collapses into a stun
@@ -786,9 +797,9 @@ function updateShip(s, dt) {
       G.wells.push({ type: 1, x: at.x, y: at.y, r: 30, gr: 300, g: bp === 2 ? -380 : 400, life: 4.5, o: s.i, lvl: lv, br: bp }); ev('w', at.x, at.y);
     }
     else if (p === PUL) {
-      const pr = bp === 1 ? 400 : 215 + 25 * lv, pd = (40 + 18 * lv) * (bp === 1 ? 1.6 : 1), pst = 0.7 + 0.15 * lv;
+      const pr = bp === 1 ? 400 : 215 + 25 * lv, pd = (40 + 18 * lv) * (bp === 1 ? 1.6 : 1), pst = (0.7 + 0.15 * lv) * CCMUL;
       ev('k', s.x, s.y, pr);
-      for (const o of G.ships) { if (!o.alive || teamOf(o.i) === teamOf(s.i)) continue; const d = dist(o, s); if (d < pr + o.rad && d > 0) { o.vx += (o.x - s.x) / d * 520; o.vy += (o.y - s.y) / d * 520; o.emp = Math.max(o.emp, pst); o.slow = Math.max(o.slow || 0, 2.5); if (bp === 2) { o.sh = 0; o.lastHit = G.t; } hurt(o, pd, s.i, o.x, o.y); } }
+      for (const o of G.ships) { if (!o.alive || teamOf(o.i) === teamOf(s.i)) continue; const d = dist(o, s); if (d < pr + o.rad && d > 0) { o.vx += (o.x - s.x) / d * 520; o.vy += (o.y - s.y) / d * 520; o.emp = Math.max(o.emp, pst); o.slow = Math.max(o.slow || 0, 2.5 * CCMUL); if (bp === 2) { o.sh = 0; o.lastHit = G.t; } hurt(o, pd, s.i, o.x, o.y); } }
       for (const n of G.neut) if (!n.dead && HN(n) && dist(n, s) < pr + n.rad) hurtNeut(n, pd, n.x, n.y, s.i);
       for (let k = G.proj.length - 1; k >= 0; k--) { const q = G.proj[k]; if (q.o !== s.i && (q.k === 1 || q.k === 2 || q.k === 3 || q.k === 5) && dist(q, s) < pr - 40 && (q.o < 0 || teamOf(q.o) !== teamOf(s.i))) G.proj.splice(k, 1); }
     }
@@ -803,7 +814,7 @@ function updateShip(s, dt) {
     else if (p === SCT) {   // point-blank pellet burst (Slug Thrower: one heavy slug; Shredder: wider, slows and shoves)
       const nP = 8 + 3 * lv + (bp === 2 ? 5 : 0), dP = 12 + 3 * lv, spread = bp === 2 ? 0.85 : 0.6;
       if (bp === 1) spawnProj(1, s.i, s.x + Math.cos(ang0) * s.rad, s.y + Math.sin(ang0) * s.rad, ang0, 1000, 0.6, nP * dP * 0.42, { pr: 8, kb: 300 });
-      else for (let k = 0; k < nP; k++) spawnProj(1, s.i, s.x + Math.cos(ang0) * s.rad, s.y + Math.sin(ang0) * s.rad, ang0 + (nP > 1 ? k / (nP - 1) - 0.5 : 0) * spread + rnd(-0.05, 0.05), rnd(640, 780), rnd(0.4, 0.48), dP, { kb: bp === 2 ? 170 : 40, slow: bp === 2 ? 1.3 : 0 });
+      else for (let k = 0; k < nP; k++) spawnProj(1, s.i, s.x + Math.cos(ang0) * s.rad, s.y + Math.sin(ang0) * s.rad, ang0 + (nP > 1 ? k / (nP - 1) - 0.5 : 0) * spread + rnd(-0.05, 0.05), rnd(640, 780), rnd(0.4, 0.48), dP, { kb: bp === 2 ? 170 : 40, slow: bp === 2 ? 1.3 * CCMUL : 0 });
       ev('B', s.x, s.y, Math.round(ang0 * 100)); s.vx -= Math.cos(ang0) * 90; s.vy -= Math.sin(ang0) * 90;
     }
     else if (p === SIP) {   // channel a drain on the current target (needs a ship / hostile in range)
@@ -825,7 +836,7 @@ function updateShip(s, dt) {
         ev('w', s.x, s.y); ev('C', s.x, s.y, 0);
         if (bp === 1) {   // Echo Burst: foes chasing you get stunned where you vanished
           const er = 210; ev('k', s.x, s.y, er);
-          for (const o of G.ships) if (o.alive && teamOf(o.i) !== teamOf(s.i) && dist(o, s) < er + o.rad) { o.emp = Math.max(o.emp, 0.7); hurt(o, 18 + 8 * lv, s.i, o.x, o.y); }
+          for (const o of G.ships) if (o.alive && teamOf(o.i) !== teamOf(s.i) && dist(o, s) < er + o.rad) { o.emp = Math.max(o.emp, 0.7 * CCMUL); hurt(o, 18 + 8 * lv, s.i, o.x, o.y); }
         }
         const cap = s.hpMax * (0.24 + 0.08 * lv + (bp === 2 ? 0.2 : 0));
         s.x = e.x; s.y = e.y; s.vx = s.vy = 0; s.emp = 0; s.slow = 0; s.phase = 0.6; s.portalT = 1; s.sip = null;
@@ -838,25 +849,22 @@ function updateShip(s, dt) {
       for (let k = 0; k < 3; k++) { const q = s.sk[k]; if (q >= 0 && q !== CAP) s.cd[q] = Math.max(0, s.cd[q] - (6 + 2 * lv)); }
       ev('w', s.x, s.y);
     }
-    else if (p === FLK) {   // Flak Ring: pellets in every direction
+    else if (p === FLK) {   // Flak Ring: long-range ring of pellets in every direction, like a Leviathan strike
       const nP = 12 + 4 * lv, dP = 10 + 3 * lv, a0 = rnd(0, 6.28);
-      for (let k = 0; k < nP; k++) spawnProj(1, s.i, s.x, s.y, a0 + k / nP * 6.283, rnd(560, 680), rnd(0.45, 0.55), dP, { kb: 120 });
+      for (let k = 0; k < nP; k++) spawnProj(1, s.i, s.x, s.y, a0 + k / nP * 6.283, rnd(560, 680), rnd(1.8, 2.2), dP, { kb: 120 });
       ev('k', s.x, s.y, 150);
-    }
-    else if (p === TRC) {   // Tractor Beam: drag the target to you, slow it, and sting it
-      if (t && (isShip(t) || t.type != null) && dist(s, t) < 650 + (t.rad || 0)) {
-        const d = dist(s, t) || 1;
-        if (isShip(t)) { t.vx += (s.x - t.x) / d * (520 + 90 * lv); t.vy += (s.y - t.y) / d * (520 + 90 * lv); t.slow = Math.max(t.slow || 0, 1.6 + 0.4 * lv); hurt(t, 10 + 4 * lv, s.i, t.x, t.y); }
-        else if (t.type != null) hurtNeut(t, 10 + 4 * lv, t.x, t.y, s.i);
-        ev('A', t.x, t.y, s.i);
-      } else { s.cd[p] = 0.6; }
     }
     else if (p === STS) {   // Stasis Field: foes and enemy shots near you crawl
       const sr = 300 + 30 * lv; ev('k', s.x, s.y, sr);
-      for (const o of G.ships) if (o.alive && teamOf(o.i) !== teamOf(s.i) && dist(o, s) < sr + o.rad) { o.slow = Math.max(o.slow || 0, 3 + 0.5 * lv); o.emp = Math.max(o.emp, 0.4); o.vx *= 0.3; o.vy *= 0.3; }
+      for (const o of G.ships) if (o.alive && teamOf(o.i) !== teamOf(s.i) && dist(o, s) < sr + o.rad) { o.slow = Math.max(o.slow || 0, (3 + 0.5 * lv) * CCMUL); o.emp = Math.max(o.emp, 0.4 * CCMUL); o.vx *= 0.3; o.vy *= 0.3; }
       for (const q of G.proj) if (q.o !== s.i && (q.o < 0 || teamOf(q.o) !== teamOf(s.i)) && dist(q, s) < sr) { q.vx *= 0.35; q.vy *= 0.35; }
     }
-    else if (p === FLT) { if (bp === 1) for (let k = 0; k < 3; k++) addEscort(s, 0, 25); else if (bp === 2) addEscort(s, 1, 40, 1.5, 5); else { addEscort(s, 0, 25); addEscort(s, 0, 25); } logMsg(`${G.players[s.i].name} called reinforcements!`); }
+    else if (p === FLT) {   // 1/3/4 gunships by level, each twice as strong as a normal one; Heavy Cruiser swaps that for one very tough frigate
+      const cnt = lv + (lv >= 2 ? 1 : 0);
+      if (bp === 2) addEscort(s, 1, 40, 2.6, 2);
+      else for (let k = 0; k < cnt + (bp === 1 ? 1 : 0); k++) addEscort(s, 0, 25, 2, 2);
+      logMsg(`${G.players[s.i].name} called reinforcements!`);
+    }
   }
   // consumable items: 2 personal slots, used independently of the skill loadout above
   for (let j = 0; j < 2; j++) if (I['i' + j] && s.item[j] >= 0) useItem(s, j, t);
@@ -866,7 +874,7 @@ function useItem(s, j, t) {
   if (it === 2) {   // Immobilizer: needs a valid enemy ship in range, or it's refunded
     const o = (t && isShip(t) && dist(s, t) < 700) ? t : nearest(enemyShips(s), s, 700);
     if (!o) return;
-    o.emp = Math.max(o.emp, 4); o.vx = 0; o.vy = 0; ev('A', o.x, o.y, s.i);
+    o.emp = Math.max(o.emp, 4 * CCMUL); o.vx = 0; o.vy = 0; ev('A', o.x, o.y, s.i);
   } else if (it === 0) { s.hp = s.hpMax; s.sh = s.shMax; s.emp = 0; s.slow = 0; ev('w', s.x, s.y); }
   else if (it === 1) { const a = t ? Math.atan2(t.y - s.y, t.x - s.x) : s.ang; spawnProj(4, s.i, s.x + Math.cos(a) * s.rad, s.y + Math.sin(a) * s.rad, a, 340, 2.4, 240, { rad: 150 }); }
   else if (it === 3) addScrap(s, 60 + 10 * s.level);
@@ -880,7 +888,7 @@ function siphonTick(s, dt) {   // Siphon Beam: every 0.25 s drain the target and
   if ((q.tk -= dt) > 0) return;
   q.tk = 0.25;
   const dmg = (16 + 4 * q.lv) * 0.25 * (s.od > 0 ? 1.3 : 1), before = t.hp + (t.sh || 0);
-  if (isShip(t)) { hurt(t, dmg, s.i, t.x, t.y); if (q.br === 2) t.slow = Math.max(t.slow || 0, 0.35); } else hurtNeut(t, dmg, t.x, t.y, s.i);
+  if (isShip(t)) { hurt(t, dmg, s.i, t.x, t.y); if (q.br === 2) t.slow = Math.max(t.slow || 0, 0.35 * CCMUL); } else hurtNeut(t, dmg, t.x, t.y, s.i);
   const dealt = Math.max(0, before - Math.max(0, t.hp) - (t.sh || 0)), heal = dealt * (q.br === 1 ? 0.75 : q.br === 2 ? 0.4 : 0.55);
   const over = Math.max(0, s.hp + heal - s.hpMax); s.hp = Math.min(s.hpMax, s.hp + heal);
   if (q.br === 1 && over > 0 && s.shMax > 0) s.sh = Math.min(s.shMax, s.sh + over);
@@ -897,7 +905,7 @@ function turretUpdate(n, dt) {   // Sentry Turret: stationary; default = steady 
       n.shT = 1.9;
       for (const f of targetsFor(n.ow).filter(m => dist(m, n) < 380 + (m.rad || 0)).sort((a, b) => dist(a, n) - dist(b, n)).slice(0, 3)) {
         ev('a', f.x, f.y, n.id);
-        if (isShip(f)) { f.emp = Math.max(f.emp, 0.35); hurt(f, (18 + 5 * lv) * lvm, n.ow, f.x, f.y); } else hurtNeut(f, (18 + 5 * lv) * lvm, f.x, f.y, n.ow);
+        if (isShip(f)) { f.emp = Math.max(f.emp, 0.35 * CCMUL); hurt(f, (18 + 5 * lv) * lvm, n.ow, f.x, f.y); } else hurtNeut(f, (18 + 5 * lv) * lvm, f.x, f.y, n.ow);
       }
     }
   }
@@ -1116,14 +1124,14 @@ function solarFlare() {
   for (const s of G.ships) {
     if (!s.alive) continue;
     if (G.nebs.some(n => dist(n, s) < n.r) || G.ast.some(a => a.big && dist(a, s) < a.r + 90)) { ev('s', s.x, s.y, 0); continue; }
-    s.sh = 0; s.lastHit = G.t; s.emp = Math.max(s.emp, 0.8); hurt(s, 90, -1, s.x, s.y); hit++;
+    s.sh = 0; s.lastHit = G.t; s.emp = Math.max(s.emp, 0.8 * CCMUL); hurt(s, 90, -1, s.x, s.y); hit++;
   }
   logMsg(hit ? `☀ The solar flare scorched ${hit} ship${hit > 1 ? 's' : ''}!` : '☀ Everyone found cover from the solar flare');
 }
 function stepOnce(dt) {
   G.t += dt; STT = G.t; G.z = G.cond === 'last' ? zoneR(G.t) : G.cond === 'score' ? zoneRS(G.t) : R0;
   if (G.bh) { G.bh.x = G.bhs * Math.sin(G.t * 0.04) * R0 * 0.25; G.bh.y = Math.cos(G.t * 0.06) * R0 * 0.3; }
-  for (const w of G.wells) if (w.life != null && w.o != null && w.g > 0) for (const sh of G.ships) if (sh.alive && teamOf(sh.i) !== teamOf(w.o) && Math.hypot(sh.x - w.x, sh.y - w.y) < w.gr * 0.55) sh.slow = Math.max(sh.slow || 0, 0.4);
+  for (const w of G.wells) if (w.life != null && w.o != null && w.g > 0) for (const sh of G.ships) if (sh.alive && teamOf(sh.i) !== teamOf(w.o) && Math.hypot(sh.x - w.x, sh.y - w.y) < w.gr * 0.55) sh.slow = Math.max(sh.slow || 0, 0.4 * CCMUL);
   for (const w of G.wells) if (w.vx != null) { w.x += w.vx * dt; w.y += w.vy * dt; if (Math.hypot(w.x, w.y) < R0 * 1.1) w.in = 1; }
   G.wells = G.wells.filter(w => { if (w.vx != null && w.in && Math.hypot(w.x, w.y) > R0 * 1.3) { G.rogue = 0; return false; } if (w.life == null) return true; if ((w.life -= dt) > 0) return true; if (w.o != null) collapseWell(w); return false; });
   if (G.portals.some(p => p.life != null)) {
@@ -1258,7 +1266,7 @@ function stepOnce(dt) {
     for (const sh of G.ships) {
       if (!sh.alive || dist(sh, f) > f.r + sh.rad) continue;
       if (teamOf(sh.i) === ft && f.k === 0) { sh.hp = Math.min(sh.hpMax, sh.hp + (20 + 6 * f.lvl) * dt); if (f.br === 1) { sh.sh = Math.min(sh.shMax, sh.sh + 14 * dt); sh.emp = Math.max(0, sh.emp - dt * 2); } }
-      else if (teamOf(sh.i) !== ft && f.k === 1 && tick) { hurt(sh, (20 + 6 * f.lvl) * 0.5, f.o, sh.x, sh.y); sh.slow = Math.max(sh.slow || 0, 0.7); }
+      else if (teamOf(sh.i) !== ft && f.k === 1 && tick) { hurt(sh, (20 + 6 * f.lvl) * 0.5, f.o, sh.x, sh.y); sh.slow = Math.max(sh.slow || 0, 0.7 * CCMUL); }
     }
     for (const n of G.neut) {
       if (n.dead || dist(n, f) > f.r + n.rad) continue;
@@ -1398,13 +1406,13 @@ function botControl(s, dt) {
   for (let j = 0; j < 3; j++) {
     const p = s.sk[j]; let on = 0; const ad = tg ? Math.abs(angDiff(s.ang, Math.atan2(tg.y - s.y, tg.x - s.x))) : 9;
     if (p === MIS) on = fight && dd < 700; else if (p === TOR) on = fight && dd < 480; else if (p === DRN) on = fight && dd < 650;
-    else if (p === MIN) on = flee || (fight && dd < 320); else if (p === DSH) on = flee || (d.lead >= 1 && fight && dd > 330 && dd < 750 && ad < 0.35 && Math.random() < 0.06);
+    else if (p === MIN) on = flee || (fight && dd < 320); else if (p === DSH) on = s.emp > 0 || flee || (d.lead >= 1 && fight && dd > 330 && dd < 750 && ad < 0.35 && Math.random() < 0.06);
     else if (p === RAIL) on = fight && dd < 1000 && ad < 0.15; else if (p === GRV) on = fight && dd < 600 && dd > 200; else if (p === PUL) on = fight && dd < 190 + 25 * eff(s, PUL);
     else if (p === CLK) on = flee || (fight && dd > 450 && dd < 900 && Math.random() < 0.03); else if (p === OD) on = fight && dd < 520; else if (p === AEG) on = G.proj.some(q => q.o !== s.i && (q.o < 0 || teamOf(q.o) !== team) && q.k !== 7 && dist(q, s) < 280) || (fight && dd < 450 && G.t - s.lastHit < 1.5);
     else if (p === NAN) on = s.hp < s.hpMax * 0.6 && G.t - s.lastHit < 6; else if (p === ARC) on = fight && dd < 520; else if (p === FLT) on = fight && dd < 800;
     else if (p === SCT) on = fight && dd < 210 && ad < 0.5; else if (p === SIP) on = fight && dd < 480 && !s.sip; else if (p === TUR) on = fight && dd < 650;
     else if (p === CHR) on = s.hp < s.hpMax * 0.45 && G.t - s.lastHit < 2.5;
-    else if (p === CAP) on = fight && (s.sh < s.shMax * 0.5 || s.cd[s.sk[(j + 1) % 3]] > 4 || s.cd[s.sk[(j + 2) % 3]] > 4); else if (p === FLK) on = fight && dd < 280; else if (p === TRC) on = fight && dd > 260 && dd < 600; else if (p === STS) on = fight && dd < 300;
+    else if (p === CAP) on = fight && (s.sh < s.shMax * 0.5 || s.cd[s.sk[(j + 1) % 3]] > 4 || s.cd[s.sk[(j + 2) % 3]] > 4); else if (p === FLK) on = fight && dd < 900; else if (p === STS) on = fight && dd < 300;
     I['s' + j] = on ? 1 : 0;
   }
 }
@@ -1481,7 +1489,8 @@ function predict(dt, inp) {
 
 // ================================================================ input (touch joystick + skills, tap-to-target; keyboard/mouse fallback)
 const K = {}, cv = $('cv'), ctx = cv.getContext('2d');
-let CW = 1, CH = 1, DPR = 1, JOY = null, myTg = '', LASTM = null, SKP = [0, 0, 0, 0, 0], VIEWNOW = null;
+let CW = 1, CH = 1, DPR = 1, JOY = null, myTg = '', LASTM = null, SKP = [0, 0, 0, 0, 0], VIEWNOW = null, MY_SENS = 0;
+const sensMul = lv => 1 + 0.2 * (lv || 0);   // Sensor Array: wider view + matching laser engagement range
 let LOWQ = false, EMA = 0.016, SA = { t: 0, r: 0, b: 0, l: 0 };
 // adaptive quality: 2 = full, 1 = 1x resolution + no decorations, 0 = 0.75x resolution + fewer particles/backdrop layers. Steps down when the frame rate sags, tries back up after a calm half minute.
 const QFORCE = (location.search.match(/[?&]q=([012])/) || [])[1];
@@ -1517,7 +1526,7 @@ function uiHit(x, y) {
   return null;
 }
 const DEMOZ = +((location.search.match(/[?&]zoom=([0-9.]+)/) || [])[1]) || 1;
-const zoomOf = () => Math.min(CW, CH) / (Math.min(CW, CH) < 500 ? 600 : 700) * DEMOZ;
+const zoomOf = () => Math.min(CW, CH) / (Math.min(CW, CH) < 500 ? 600 : 700) * DEMOZ / sensMul(MY_SENS);
 function worldAt(sx, sy) { const Z = zoomOf(); return { x: R.cam.x + (sx - CW / 2) / Z, y: R.cam.y + (sy - CH / 2) / Z }; }
 function tapTarget(sx, sy) {
   if (S.mode !== 'game' || !VIEWNOW || !R.cam) return;
@@ -1911,7 +1920,7 @@ function drawProj(p, tt) {
 }
 function bar(x, y, w, h, f, c) { ctx.fillStyle = '#0009'; ctx.fillRect(x, y, w, h); ctx.fillStyle = c; ctx.fillRect(x, y, w * clamp(f, 0, 1), h); }
 
-const SKSND = { [SCT]: 'scatter', [SIP]: 'siphon', [TUR]: 'turret', [CHR]: 'chrono', [CAP]: 'pickup', [FLK]: 'scatter', [TRC]: 'siphon', [STS]: 'shock', [MIS]: 'missile', [TOR]: 'torpedo', [DRN]: 'drone', [MIN]: 'mine', [DSH]: 'dash', [GRV]: 'gravity', [CLK]: 'warp', [OD]: 'dash', [AEG]: 'shield', [NAN]: 'pickup', [ARC]: 'shock', [FLT]: 'warp' };
+const SKSND = { [SCT]: 'scatter', [SIP]: 'siphon', [TUR]: 'turret', [CHR]: 'chrono', [CAP]: 'pickup', [FLK]: 'scatter', [STS]: 'shock', [MIS]: 'missile', [TOR]: 'torpedo', [DRN]: 'drone', [MIN]: 'mine', [DSH]: 'dash', [GRV]: 'gravity', [CLK]: 'warp', [OD]: 'dash', [AEG]: 'shield', [NAN]: 'pickup', [ARC]: 'shock', [FLT]: 'warp' };
 // ---- screen-space polish: baked vignettes, parallax space dust, engine trails, animated menu backdrop
 const mkCv = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
 let VIG = null, VIGR = null, VIGW = 0, VIGH = 0;
@@ -2008,6 +2017,7 @@ function frame(now) {
   if (!fo) { const myf = PL[me] ? PL[me].fac : -1, al = V.ships.filter(s => s.alive).sort((a, b) => (PL[b.i].fac === myf) - (PL[a.i].fac === myf)); if (al.length) fo = al[((R.spec % al.length) + al.length) % al.length]; }
   if (fo) { if (!R.cam) R.cam = { x: fo.x, y: fo.y }; const k = fo === M ? 1 : Math.min(1, 6 * dt); R.cam.x += (fo.x - R.cam.x) * k; R.cam.y += (fo.y - R.cam.y) * k; }
   if (!R.cam) return;
+  MY_SENS = fo ? eff(fo, SEN) : 0;
   const Z = zoomOf(), cam = R.cam, tt = now / 1000; FDT = dt; FZ = Z; TT = tt;
   VX0 = cam.x - CW / 2 / Z; VX1 = cam.x + CW / 2 / Z; VY0 = cam.y - CH / 2 / Z; VY1 = cam.y + CH / 2 / Z;
   if (ART2) Art2.fx.setView(VX0, VY0, VX1, VY1);
