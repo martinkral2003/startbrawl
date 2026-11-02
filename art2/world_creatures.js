@@ -125,4 +125,49 @@
     }
     ctx.restore();
   };
+
+  // ---------- harvester: alien adaptive hive-construct — omnidirectional, not a ship, cold toxic green ----------
+  W.harvester = function (ctx, n, t) {
+    const r = n.rad || 100, s = seedOf(n), res = Math.max(0, Math.min(0.5, n.res || 0));
+    const hpf = Math.max(0, Math.min(1, n.hpMax > 0 ? n.hp / n.hpMax : 1)), dmg = 1 - hpf;
+    ctx.save(); ctx.translate(n.x, n.y);
+    // cold menace aura, intensifies as it adapts to sustained fire
+    A.glow(ctx, 0, 0, r * (1.9 + res * 0.6), 'rgba(90,230,160,0.4)', 0.14 + 0.08 * Math.sin(t * 1.3) + res * 0.35);
+    // outer spiked carapace, slowly rotating — it has no "front", it simply closes in from every side
+    const rot = t * 0.12, SP = 10;
+    ctx.save(); ctx.rotate(rot);
+    ctx.beginPath();
+    for (let i = 0; i < SP * 2; i++) { const a = i / (SP * 2) * A.TAU, rr = (i % 2 ? 0.62 : 1) * r * (i % 2 ? 1 : 1 + 0.04 * Math.sin(t * 2 + i)); ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+    ctx.closePath();
+    const g0 = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r * 1.05);
+    g0.addColorStop(0, '#4a8a66'); g0.addColorStop(0.6, '#1c3326'); g0.addColorStop(1, '#040907');
+    ctx.fillStyle = g0; ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.strokeStyle = 'rgba(160,255,200,0.3)'; ctx.lineWidth = 1; ctx.beginPath();
+    for (let i = 0; i < SP; i++) { const a = i / SP * A.TAU; ctx.moveTo(Math.cos(a) * r * 0.62, Math.sin(a) * r * 0.62); ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+    ctx.stroke();
+    ctx.restore();
+    // adaptation lattice: a dashed ring that thickens and brightens the more it has adapted to recent fire
+    ctx.strokeStyle = `rgba(170,255,210,${0.3 + 0.5 * res})`; ctx.lineWidth = 2 + res * 5; ctx.setLineDash([10, 9]); ctx.lineDashOffset = -t * 30;
+    ctx.beginPath(); ctx.arc(0, 0, r * 1.14, 0, A.TAU); ctx.stroke(); ctx.setLineDash([]);
+    // nucleus core: the "brain" — brighter and hotter (green -> pale yellow) the more it has adapted
+    const pulse = 1 + Math.sin(t * 3 + s) * 0.07, cr = r * (0.46 + res * 0.22) * pulse;
+    A.glow(ctx, 0, 0, cr * 1.6, `rgba(${170 + 170 * res | 0},255,${200 - 70 * res | 0},0.9)`, 0.85);
+    const g1 = ctx.createRadialGradient(0, 0, 0, 0, 0, cr);
+    g1.addColorStop(0, '#f2fff6'); g1.addColorStop(0.45, res > 0.25 ? '#d9ff8a' : '#7affc2'); g1.addColorStop(1, '#173a29');
+    ctx.fillStyle = g1; ctx.beginPath(); ctx.arc(0, 0, cr, 0, A.TAU); ctx.fill();
+    // 3 weapon nodes orbiting the core (laser + missile emitters)
+    for (let i = 0; i < 3; i++) {
+      const a = i / 3 * A.TAU + t * 0.5, ex = Math.cos(a) * r * 0.74, ey = Math.sin(a) * r * 0.74;
+      ctx.fillStyle = '#16241c'; ctx.beginPath(); ctx.arc(ex, ey, r * 0.1, 0, A.TAU); ctx.fill();
+      A.glow(ctx, ex, ey, r * 0.2, 'rgba(255,110,110,0.75)', 0.35 + 0.3 * Math.sin(t * 8 + i * 2));
+    }
+    // damage: dark fractures spreading across the carapace as it's worn down
+    if (dmg > 0.15) {
+      const rnd = A.rng(s * 211 + 41), nc = Math.ceil(dmg * 9);
+      ctx.strokeStyle = `rgba(10,6,8,${0.45 + 0.35 * dmg})`; ctx.lineWidth = 1.3; ctx.beginPath();
+      for (let i = 0; i < nc; i++) { let x = (rnd() - 0.5) * 1.5 * r, y = (rnd() - 0.5) * 1.5 * r; ctx.moveTo(x, y); for (let k = 0; k < 3; k++) { x += (rnd() - 0.5) * 0.28 * r; y += (rnd() - 0.5) * 0.28 * r; ctx.lineTo(x, y); } }
+      ctx.stroke();
+    }
+    ctx.restore();
+  };
 })();
