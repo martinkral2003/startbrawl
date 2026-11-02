@@ -96,6 +96,12 @@ const $ = id => document.getElementById(id);
 const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const segDist = (px, py, x1, y1, x2, y2) => {   // closest point on a line segment to (px,py), and the distance to it
+  const dx = x2 - x1, dy = y2 - y1, len2 = dx * dx + dy * dy || 1;
+  let t = ((px - x1) * dx + (py - y1) * dy) / len2; t = t < 0 ? 0 : t > 1 ? 1 : t;
+  const cx = x1 + t * dx, cy = y1 + t * dy;
+  return { cx, cy, d: Math.hypot(px - cx, py - cy) };
+};
 const angDiff = (a, b) => { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
 const eff = (s, p) => (s.lv[p] > 0 && !s.dp[p] ? s.lv[p] : 0);
 const radOf = lv => 15 + Math.min(14, lv.reduce((a, b) => a + b, 0) * 0.5);
@@ -378,7 +384,7 @@ function newGame(L) {
     const t = p.team, k = cnt[t]++, side = t ? 1 : -1, ra = i / np * Math.PI * 2;
     const sx = MODE === 'teams' ? side * R0 * 0.72 : Math.cos(ra) * R0 * 0.75, sy = MODE === 'teams' ? (k - (tot[t] - 1) / 2) * 280 : Math.sin(ra) * R0 * 0.75, sa = MODE === 'teams' ? (t ? Math.PI : 0) : ra + Math.PI;
     const s = { i, x: sx, y: sy, sx, sy, sa, vx: 0, vy: 0, ang: sa, respT: 0, inv: 0, slow: 0, hp: 900, hpMax: 900, sh: 0, shMax: 0, rad: 15,
-      lv: Array(NP).fill(0), dp: Array(NP).fill(0), ph: Array(NP).fill(0), br: Array(NP).fill(0), sk: [-1, -1, -1], item: [-1, -1], cd: Array(NP).fill(0), scrap: 0, level: 0, pending: 1, offers: [],
+      lv: Array(NP).fill(0), dp: Array(NP).fill(0), ph: Array(NP).fill(0), br: Array(NP).fill(0), sk: [-1, -1, -1], item: [-1, -1], cd: Array(NP).fill(0), scrap: 0, gold: 0, level: 0, pending: 1, offers: [],
       cloak: 0, od: 0, aegis: 0, amb: 0, streak: 0, lsT: 0, novaT: 0,
       alive: true, emp: 0, boost: 0, thr: 0, fireT: 0, repT: 0, portalT: 0, lastHit: -9, kills: 0, inT: 0,
       in: { mx: 0, my: 0, tg: '', s0: 0, s1: 0, s2: 0, i0: 0, i1: 0, sa: [0, 0, 0] }, tgtNow: null,
@@ -393,6 +399,7 @@ function newGame(L) {
   const star = (x, y) => ({ type: 2, x: x * R0, y: y * R0, r: 70, gr: 520, g: 330 });   // star: gravity + burning heat zone
   const neb = (x, y, r) => G.nebs.push({ x: x * R0, y: y * R0, r });
   G.wells = []; G.portals = []; G.nebs = []; G.streams = []; G.bh = null;
+  G.lwalls = G.cond === 'war' ? [{ x1: -0.45 * R0, y1: -200, x2: 0.45 * R0, y2: -200 }, { x1: -0.45 * R0, y1: 200, x2: 0.45 * R0, y2: 200 }] : [];
   if (G.cond === 'war') {   // War mode: open lane down the middle, no wells/portals/currents in the way
     neb(-0.4, -0.35, 300); neb(0.4, 0.35, 300); neb(0, 0.75, 260); neb(0, -0.75, 260);
   } else if (G.layout === 0) {
@@ -434,7 +441,7 @@ function newGame(L) {
   for (let i = 0; i < 6; i++) hazard();   // radiation clouds
   if (G.cond === 'war') {   // two Starbases + lane turrets; destroying the enemy Starbase wins the match
     const owner = [0, 1].map(f => L.players.findIndex(p => p.fac === f));
-    const mkStruct = (fac, x, y, cls, hp, tlv, tbr) => { const n = { id: G.nid++, type: 6, cls, x, y, vx: 0, vy: 0, ang: fac ? Math.PI : 0, hp, hpMax: hp, gx: x, gy: y, shT: 0, rad: ECLS[cls].rad, by: -1, ow: owner[fac], res: 0, ttl: null, stat: 1, tlv, tbr }; G.neut.push(n); return n; };
+    const mkStruct = (fac, x, y, cls, hp, tlv, tbr) => { const n = { id: G.nid++, type: 6, cls, x, y, vx: 0, vy: 0, ang: fac ? Math.PI : 0, hp, hpMax: hp, gx: x, gy: y, shT: 0, rad: ECLS[cls].rad, by: -1, ow: owner[fac], res: 0, ttl: null, stat: 1, tlv, tlv0: tlv, tbr }; G.neut.push(n); return n; };
     G.bases = [0, 1].map(fac => mkStruct(fac, (fac ? 1 : -1) * R0 * 0.92, 0, 6, ECLS[6].hp, 4, 2));
     [0, 1].forEach(fac => { const side = fac ? 1 : -1; mkStruct(fac, side * R0 * 0.55, 0, 5, 700, 3, 0); mkStruct(fac, side * R0 * 0.25, 0, 5, 700, 3, 0); });
     G.warWaveT = 18; G.warOwner = owner;
@@ -444,7 +451,7 @@ function newGame(L) {
 function freeSpot(minD, frac) {
   for (let k = 0; k < 14; k++) {
     const a = rnd(0, 6.283), r = Math.sqrt(Math.random()) * G.z * frac, p = { x: Math.cos(a) * r, y: Math.sin(a) * r };
-    if (G.ships.every(s => !s.alive || dist(s, p) > minD) && G.wells.every(w => dist(w, p) > w.r + (w.type === 1 ? w.gr : w.type === 2 ? 240 : 90)) && G.bea.every(b => dist(b, p) > 170)) return p;
+    if (G.ships.every(s => !s.alive || dist(s, p) > minD) && G.wells.every(w => dist(w, p) > w.r + (w.type === 1 ? w.gr : w.type === 2 ? 240 : 90)) && G.bea.every(b => dist(b, p) > 170) && G.lwalls.every(w => segDist(p.x, p.y, w.x1, w.y1, w.x2, w.y2).d > 90)) return p;
   }
   return null;
 }
@@ -601,7 +608,7 @@ function hurtNeut(n, dmg, x, y, by) {
   if (n.hp > 0) return;
   n.dead = true; ev('x', n.x, n.y, n.rad * 2);
   if (n.type === 6) {
-    if (n.mini) { const k = n.by >= 0 ? G.ships[n.by] : null; if (k && k.alive && teamOf(k.i) !== teamOf(n.ow)) addScrap(k, 12 + 3 * (n.mlv || 1)); return; }
+    if (n.mini) { const k = n.by >= 0 ? G.ships[n.by] : null; if (k && k.alive && teamOf(k.i) !== teamOf(n.ow)) k.gold = (k.gold || 0) + 12 + 3 * (n.mlv || 1); return; }
     if (n.ttl == null) {
       if (n.cls === 6) logMsg(`💥 ${TN[teamOf(n.ow)]} STARBASE DESTROYED!`);
       else if (n.cls === 5 && G.cond === 'war') logMsg(`${TN[teamOf(n.ow)]} turret destroyed!`);
@@ -756,6 +763,10 @@ function updateShip(s, dt) {
   for (const a of G.ast) {
     const d = Math.hypot(s.x - a.x, s.y - a.y), mn = s.rad + a.r;
     if (d < mn && d > 0) { const nx = (s.x - a.x) / d, ny = (s.y - a.y) / d; s.x = a.x + nx * mn; s.y = a.y + ny * mn; const vn = s.vx * nx + s.vy * ny; if (vn < 0) { s.vx -= 1.6 * vn * nx; s.vy -= 1.6 * vn * ny; } if (a.deb && (s.debT || 0) <= G.t) { s.debT = G.t + 0.4; hurt(s, 7, -1, s.x, s.y); } }
+  }
+  if (G.lwalls) for (const w of G.lwalls) {   // War mode: lane walls — a real move constraint, not just a suggestion
+    const { cx, cy, d } = segDist(s.x, s.y, w.x1, w.y1, w.x2, w.y2), mn = s.rad + 16;
+    if (d < mn && d > 0) { const nx = (s.x - cx) / d, ny = (s.y - cy) / d; s.x = cx + nx * mn; s.y = cy + ny * mn; const vn = s.vx * nx + s.vy * ny; if (vn < 0) { s.vx -= 1.6 * vn * nx; s.vy -= 1.6 * vn * ny; } }
   }
   if (s.portalT <= 0) {
     for (let k = 0; k < G.portals.length; k++) {
@@ -1032,10 +1043,10 @@ function updateNeut(n, dt) {
   if (n.type === 7) {   // hire outpost: stay inside the ring for 2 s to buy its ship class with scrap
     n.ang += dt * 0.25; const C = ECLS[n.cls || 0], near = nearest(G.ships.filter(sh => sh.alive), n, 125);
     if (!near) { n.res = Math.max(0, (n.res || 0) - dt); return; }
-    const full = fleetN(near.i) >= fleetCap(near), poor = near.scrap < C.cost;
+    const wallet = G.cond === 'war' ? (near.gold || 0) : near.scrap, full = fleetN(near.i) >= fleetCap(near), poor = wallet < C.cost;
     if (full || poor) { n.res = 0; if (G.t > (near.dnT || 0)) { near.dnT = G.t + 3; ev('n', n.x, n.y, near.i * 10 + (full ? 2 : 1)); } return; }
     n.res = Math.min(1, (n.res || 0) + dt / 2);
-    if (n.res >= 1) { n.res = -0.4; near.scrap -= C.cost; addEscort(near, n.cls || 0); logMsg(`${G.players[near.i].name} hired a ${C.n} (-${C.cost} scrap)`); }
+    if (n.res >= 1) { n.res = -0.4; if (G.cond === 'war') near.gold -= C.cost; else near.scrap -= C.cost; addEscort(near, n.cls || 0); logMsg(`${G.players[near.i].name} hired a ${C.n} (-${C.cost} ${G.cond === 'war' ? 'gold' : 'scrap'})`); }
     if (n.res < 0) n.res = Math.min(0, n.res + dt * 0.4) || 0;
     return;
   }
@@ -1323,17 +1334,22 @@ function stepOnce(dt) {
     G.drops.push({ x: p.x, y: p.y, t: 25 }); logMsg('Supply drop landed — follow the yellow arrow!');
   }
   G.drops = G.drops.filter(d => (d.t -= dt) > 0);
-  if (G.cond === 'war' && (G.warWaveT -= dt) <= 0) {
-    G.warWaveT = 25;
-    [0, 1].forEach(fac => {
-      const base = G.bases[fac]; if (!base || base.dead) return;
-      if (G.neut.filter(n => n.mini && !n.dead && teamOf(n.ow) === fac).length >= 10) return;   // don't flood if waves aren't being cleared
-      for (let k = 0; k < 3; k++) {
-        const a = rnd(0, 6.28), r = rnd(0, 36), hp = ECLS[7].hp;
-        G.neut.push({ id: G.nid++, type: 6, cls: 7, mini: 1, mlv: 1, x: base.x + Math.cos(a) * r, y: base.y + Math.sin(a) * r, vx: 0, vy: 0, ang: base.ang, hp, hpMax: hp, gx: base.x, gy: base.y, shT: 0, rad: ECLS[7].rad, by: -1, ow: G.warOwner[fac], res: 0, ttl: 90 });
-      }
-    });
-    logMsg('⚔ Minion waves have deployed!');
+  if (G.cond === 'war') {
+    G.warScale = 1 + Math.min(1, G.t / 900);   // ramps to +100% turret/minion power over 15 min, so the game has a late push instead of a stalemate
+    for (const s of G.ships) if (s.alive) s.gold = (s.gold || 0) + 0.6 * dt;   // passive income, like a MOBA's base gold
+    for (const n of G.neut) if (n.tlv0 != null && !n.dead) n.tlv = n.tlv0 * G.warScale;
+    if ((G.warWaveT -= dt) <= 0) {
+      G.warWaveT = 25;
+      [0, 1].forEach(fac => {
+        const base = G.bases[fac]; if (!base || base.dead) return;
+        if (G.neut.filter(n => n.mini && !n.dead && teamOf(n.ow) === fac).length >= 10) return;   // don't flood if waves aren't being cleared
+        for (let k = 0; k < 3; k++) {
+          const a = rnd(0, 6.28), r = rnd(0, 36), hp = Math.round(ECLS[7].hp * G.warScale);
+          G.neut.push({ id: G.nid++, type: 6, cls: 7, mini: 1, mlv: Math.round(G.warScale), x: base.x + Math.cos(a) * r, y: base.y + Math.sin(a) * r, vx: 0, vy: 0, ang: base.ang, hp, hpMax: hp, gx: base.x, gy: base.y, shT: 0, rad: ECLS[7].rad, by: -1, ow: G.warOwner[fac], res: 0, ttl: 90 });
+        }
+      });
+      logMsg('⚔ Minion waves have deployed!');
+    }
   }
   if (G.cond === 'score') {
     const top = G.score.indexOf(Math.max(...G.score));
@@ -1374,7 +1390,7 @@ function publish(now) {
     t: +G.t.toFixed(2), z: r0(G.z), o: G.over ? 1 : 0, w: G.winner, ev: G.evPub.splice(0), lg: G.logPub.splice(0), dr: G.drops.map(d => [r0(d.x), r0(d.y)]),
     s: G.ships.map(s => [s.i, r0(s.x), r0(s.y), r0(s.vx), r0(s.vy), +s.ang.toFixed(2), r0(s.hp), s.hpMax, r0(s.sh), s.shMax, s.alive ? 1 : 0, s.lv.join(''),
       s.dp.reduce((m, v, j) => m | v << j, 0), s.emp > 0 ? 1 : 0, s.boost > 0 ? 1 : 0, s.thr, Math.floor(s.scrap), s.level, s.pending, s.offers,
-      s.sk.map(p => (p < 0 ? 0 : r0(s.cd[p] * 10))), s.sk, s.kills, r0(s.respT * 10), s.slow > 0 ? 1 : 0, s.br.join(''), flagsOf(s), s.streak, s.item]),
+      s.sk.map(p => (p < 0 ? 0 : r0(s.cd[p] * 10))), s.sk, s.kills, r0(s.respT * 10), s.slow > 0 ? 1 : 0, s.br.join(''), flagsOf(s), s.streak, s.item, r0(s.gold || 0)]),
     sh: G.shares.map(v => r0(v * 1000)),
     n: G.neut.map(n => [n.id, n.type, r0(n.x), r0(n.y), +n.ang.toFixed(2), r0(n.hp), r0(n.hpMax), n.rad, n.ow, r0((n.res || 0) * 100), n.cls || 0, n.conv ? 1 : 0, n.stat ? (n.ttl == null ? 9999 : r0(n.ttl * 10)) : 0, n.stat ? (n.tbr || 0) + 4 * (n.tlv || 1) : 0]),
     a: (G.pubK = (G.pubK || 0) + 1) % 8 === 1 ? G.ast.filter(a => a.vx === undefined).map(astRow) : undefined,   // static rocks: only ~2x per second
@@ -1383,6 +1399,7 @@ function publish(now) {
     k: G.pick.map(c => [c.t, r0(c.x), r0(c.y)]),
     m: G.mines.map(m => [r0(m.x), r0(m.y), teamOf(m.o), m.r, +m.life.toFixed(1), m.arm > 0 ? 1 : 0, m.ms.map(q => [r0(q[0]), r0(q[1])])]),
     wl: G.wells.map(w => [w.type, r0(w.x), r0(w.y), w.r, w.gr, w.g, w.life != null ? +w.life.toFixed(1) : 0, w.o == null ? -1 : w.o, w.lvl || 0]), pt: G.portals.map(p => [r0(p.x), r0(p.y)]),
+    lw: (G.lwalls || []).map(w => [r0(w.x1), r0(w.y1), r0(w.x2), r0(w.y2)]),
     b: G.bea.map(b => [r0(b.x), r0(b.y), r0(b.p * 100), b.owner, b.cont, b.cap]), pd: G.pads.map(p => [r0(p.x), r0(p.y)]),
     nb: G.nebs.map(n => [r0(n.x), r0(n.y), n.r]), sm: G.streams.map(m => [r0(m.x1), r0(m.y1), r0(m.x2), r0(m.y2), m.w, r0(m.cx), r0(m.cy), +m.str.toFixed(2), +m.ph.toFixed(2)]),
     io: G.ion ? [r0(G.ion.x), r0(G.ion.y), G.ion.r] : 0, gs: +Math.max(0, G.surge).toFixed(1), ly: G.layout,
@@ -1424,7 +1441,8 @@ function botControl(s, dt) {
     const beas = G.bea.filter(b => b.owner !== team).sort((a, b) => dist(a, s) - dist(b, s));
     const nb = nearest(G.neut.filter(n => n.type < 2), s, 900) || nearest(G.ast, s, 500);
     const sos = nearest(G.neut.filter(n => n.type === 5), s, 1400);
-    const hire = G.diff !== 'easy' && fleetN(s.i) < fleetCap(s) ? nearest(G.neut.filter(n => n.type === 7 && s.scrap >= ECLS[n.cls || 0].cost + 20), s, 2200) : null;
+    const wallet = G.cond === 'war' ? (s.gold || 0) : s.scrap;
+    const hire = G.diff !== 'easy' && fleetN(s.i) < fleetCap(s) ? nearest(G.neut.filter(n => n.type === 7 && wallet >= ECLS[n.cls || 0].cost + 20), s, 2200) : null;
     if (Math.hypot(s.x, s.y) > G.z - 150) ai.mode = 'zone';
     else if (rep) { ai.mode = 'pick'; ai.goal = rep; }
     else if (foe && fd < 650 && s.hp > s.hpMax * 0.35 && (s.level >= (G.diff === 'hard' ? 2 : 3) || G.t > 120)) { ai.mode = 'fight'; ai.tgt = foe; }
@@ -1478,13 +1496,14 @@ function decode(w, at) {
     ships: w.s.map(a => ({ i: a[0], x: a[1], y: a[2], vx: a[3], vy: a[4], ang: a[5], hp: a[6], hpMax: a[7], sh: a[8], shMax: a[9], alive: !!a[10],
       lv: a[11].split('').map(Number), dp: [...Array(NP).keys()].map(j => (a[12] >> j) & 1), emp: a[13], boost: a[14], thr: a[15], scrap: a[16], level: a[17],
       pending: a[18], offers: a[19], cd: a[20].map(v => v / 10), sk: a[21], kills: a[22], rs: (a[23] || 0) / 10, slow: a[24] || 0,
-      br: (a[25] || '').split('').map(Number), fl: a[26] | 0, cloak: a[26] & 1, aegis: a[26] & 2, od: a[26] & 4, amb: a[26] & 8, streak: a[27] | 0, item: a[28] || [-1, -1] })),
+      br: (a[25] || '').split('').map(Number), fl: a[26] | 0, cloak: a[26] & 1, aegis: a[26] & 2, od: a[26] & 4, amb: a[26] & 8, streak: a[27] | 0, item: a[28] || [-1, -1], gold: a[29] || 0 })),
     shares: w.sh.map(v => v / 1000),
     neut: w.n.map(a => ({ id: a[0], type: a[1], x: a[2], y: a[3], ang: a[4], hp: a[5], hpMax: a[6], rad: a[7], ow: a[8] == null ? -1 : a[8], res: Math.max(0, (a[9] || 0) / 100), cls: a[10] || 0, conv: a[11] || 0, ttl: a[12] === 9999 ? null : (a[12] || 0) / 10, tbr: (a[13] || 0) & 3, tlv: (a[13] || 0) >> 2 })),
     ast: (w.a || (C && C.sa) || []).concat(w.ad || []).map(a => ({ id: a[0], x: a[1], y: a[2], r: a[3], hp: a[4], hpMax: a[5], k: a[6] || 0 })),
     proj: w.p.map(a => ({ k: a[0], o: a[1], x: a[2], y: a[3], vx: a[4], vy: a[5] })),
     pick: w.k.map(a => ({ t: a[0], x: a[1], y: a[2] })), mines: w.m.map(a => ({ x: a[0], y: a[1], fac: a[2], r: a[3], life: a[4], arm: a[5], ms: a[6] || [] })),
     wells: w.wl.map(a => ({ type: a[0], x: a[1], y: a[2], r: a[3], gr: a[4], g: a[5], life: a[6] || 0, o: a[7] == null ? -1 : a[7], lvl: a[8] || 0 })), portals: w.pt.map(a => ({ x: a[0], y: a[1] })),
+    lwalls: (w.lw || []).map(a => ({ x1: a[0], y1: a[1], x2: a[2], y2: a[3] })),
     bea: w.b.map(a => ({ x: a[0], y: a[1], p: a[2] / 100, owner: a[3], cont: a[4], cap: a[5], r: 150 })),
     nebs: w.nb.map(a => ({ x: a[0], y: a[1], r: a[2] })), streams: w.sm.map(a => buildStream({ x1: a[0], y1: a[1], x2: a[2], y2: a[3], w: a[4], cx: a[5], cy: a[6], str: a[7], ph: a[8] })),
     ion: w.io ? { x: w.io[0], y: w.io[1], r: w.io[2] } : null, surge: w.gs, layout: w.ly, pads: w.pd.map(a => ({ x: a[0], y: a[1], r: 110 })),
@@ -2133,6 +2152,15 @@ function frame(now) {
     else if (w.type === 1) { const g = ctx.createRadialGradient(w.x, w.y, w.r * 0.3, w.x, w.y, w.r * 3); g.addColorStop(0, '#000'); g.addColorStop(0.35, '#2b0a55'); g.addColorStop(1, 'rgba(80,20,160,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(w.x, w.y, w.r * 3, 0, 7); ctx.fill(); ctx.strokeStyle = '#c9a0ff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(w.x, w.y, w.r * 1.2 + Math.sin(tt * 3) * 3, 0, 7); ctx.stroke(); }
     else { const g = ctx.createRadialGradient(w.x - w.r * 0.3, w.y - w.r * 0.3, 5, w.x, w.y, w.r); g.addColorStop(0, '#6a7aa8'); g.addColorStop(1, '#232a45'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(w.x, w.y, w.r, 0, 7); ctx.fill(); }
   }
+  for (const w of V.lwalls || []) {   // War mode: lane wall — an energy barrier that actually blocks movement
+    if (!vis((w.x1 + w.x2) / 2, (w.y1 + w.y2) / 2, Math.hypot(w.x2 - w.x1, w.y2 - w.y1) / 2 + 60)) continue;
+    const p = 0.5 + 0.5 * Math.sin(tt * 2);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = `rgba(255,90,110,${0.1 + 0.04 * p})`; ctx.lineWidth = 34; ctx.beginPath(); ctx.moveTo(w.x1, w.y1); ctx.lineTo(w.x2, w.y2); ctx.stroke();
+    ctx.strokeStyle = `rgba(255,140,150,${0.3 + 0.1 * p})`; ctx.lineWidth = 3; ctx.setLineDash([16, 10]); ctx.lineDashOffset = -tt * 20; ctx.beginPath(); ctx.moveTo(w.x1, w.y1); ctx.lineTo(w.x2, w.y2); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = `rgba(255,220,225,${0.55 + 0.25 * p})`; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(w.x1, w.y1); ctx.lineTo(w.x2, w.y2); ctx.stroke();
+    ctx.restore();
+  }
   for (const n of V.nebs) { if (!vis(n.x, n.y, n.r * 1.35)) continue; if (W2.nebula && A2(() => W2.nebula(ctx, n, tt))) continue; const g = ctx.createRadialGradient(n.x, n.y, n.r * 0.2, n.x, n.y, n.r); g.addColorStop(0, 'rgba(150,90,220,0.38)'); g.addColorStop(1, 'rgba(90,40,160,0.05)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, 7); ctx.fill(); ctx.strokeStyle = 'rgba(190,140,255,0.35)'; ctx.lineWidth = 2; ctx.setLineDash([4, 10]); ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
   for (const h of V.haz || []) {   // radiation clouds
     if (!vis(h.x, h.y, h.r + 20)) continue;
@@ -2281,6 +2309,26 @@ function drawItemButton(b, it) {   // one of the 2 consumable-item slots: empty 
   }
   ctx.restore();
 }
+function drawMinimap(V, M) {   // War mode: whole-arena overview (bases, turrets, minions, ships) in the bottom-left corner
+  const sz = 130, pad = 10, mx = SA.l + pad, my = CH - SA.b - pad - sz, scale = sz / (2 * R0);
+  const wx = x => mx + sz / 2 + x * scale, wy = y => my + sz / 2 + y * scale;
+  ctx.save();
+  ctx.fillStyle = 'rgba(8,12,20,0.72)'; ctx.fillRect(mx, my, sz, sz);
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1; ctx.strokeRect(mx, my, sz, sz);
+  ctx.save(); ctx.beginPath(); ctx.rect(mx, my, sz, sz); ctx.clip();
+  ctx.strokeStyle = 'rgba(140,160,200,0.4)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(wx(0), wy(0), R0 * scale, 0, 7); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,110,125,0.55)'; ctx.lineWidth = 1.5;
+  (V.lwalls || []).forEach(w => { ctx.beginPath(); ctx.moveTo(wx(w.x1), wy(w.y1)); ctx.lineTo(wx(w.x2), wy(w.y2)); ctx.stroke(); });
+  V.neut.forEach(n => {
+    if (n.type === 6 && (n.cls === 5 || n.cls === 6) && PL[n.ow]) { ctx.fillStyle = facC(n.ow); const r = n.cls === 6 ? 5 : 3; ctx.fillRect(wx(n.x) - r / 2, wy(n.y) - r / 2, r, r); }
+    else if (n.mini && PL[n.ow]) { ctx.globalAlpha = 0.6; ctx.fillStyle = facC(n.ow); ctx.beginPath(); ctx.arc(wx(n.x), wy(n.y), 1.3, 0, 7); ctx.fill(); ctx.globalAlpha = 1; }
+  });
+  V.ships.forEach(sh => {
+    if (!sh.alive) return; const mine = M && sh.i === M.i;
+    ctx.fillStyle = mine ? '#fff' : facC(sh.i); ctx.beginPath(); ctx.arc(wx(sh.x), wy(sh.y), mine ? 3.2 : 2.4, 0, 7); ctx.fill();
+  });
+  ctx.restore(); ctx.restore();
+}
 const tleftOf = V => (V.tleft != null ? V.tleft : Math.max(0, (V.tlim || 0) - V.t));
 function offerInfo(p, M) {   // card content for a plain upgrade (part id) or a branch (id >= 100)
   if (p >= 100) { const q = (p - 100) >> 1, b = (BR[q] && BR[q][(p - 100) & 1]) || ['?', '']; return { mod: q, name: '★ ' + b[0], desc: b[1], lvFrom: 3, lvTo: 3, active: false, branch: true }; }
@@ -2324,7 +2372,7 @@ function drawHUD2(V, me, M, now) {
   if (M && M.alive && cm && H2.arrow) {   // the arena is huge: point at the nearest enemy, and at a hire outpost you can afford
     if (!NOZONE(COND) && Math.hypot(M.x, M.y) > V.z) arrow(0, 0, '#ff5a5a');
     if (COND !== 'last') { let b = null, bd = 1e9; V.ships.forEach(o => { if (o.alive && PL[o.i].fac !== myFac() && !(FL(o) & 1)) { const d = Math.hypot(o.x - M.x, o.y - M.y); if (d < bd) { bd = d; b = o; } } }); if (b) arrow(b.x, b.y, '#ff6b6b'); }
-    if (V.neut.filter(n => n.type === 6 && n.ow === M.i && n.cls < 5).length < 2 + Math.floor(M.level / 4)) { let b = null, bd = 1e9; V.neut.forEach(n => { if (n.type === 7 && M.scrap >= ECLS[n.cls || 0].cost) { const d = Math.hypot(n.x - M.x, n.y - M.y); if (d < bd) { bd = d; b = n; } } }); if (b) arrow(b.x, b.y, ECLS[b.cls || 0].col); }
+    if (V.neut.filter(n => n.type === 6 && n.ow === M.i && n.cls < 5).length < 2 + Math.floor(M.level / 4)) { const wallet = COND === 'war' ? (M.gold || 0) : M.scrap; let b = null, bd = 1e9; V.neut.forEach(n => { if (n.type === 7 && wallet >= ECLS[n.cls || 0].cost) { const d = Math.hypot(n.x - M.x, n.y - M.y); if (d < bd) { bd = d; b = n; } } }); if (b) arrow(b.x, b.y, ECLS[b.cls || 0].col); }
     if (COND === 'war') V.neut.forEach(n => { if (n.type === 6 && (n.cls === 5 || n.cls === 6) && PL[n.ow] && PL[n.ow].fac !== myFac()) arrow(n.x, n.y, n.cls === 6 ? '#ff5a5a' : '#ffb347'); });
   }
   const NFc = MODE === 'teams' ? 2 : PL.length, alive = Array(NFc).fill(0);
@@ -2339,8 +2387,10 @@ function drawHUD2(V, me, M, now) {
   if (!M || !M.alive) { banner(COND !== 'last' && M ? 'Respawning in ' + Math.ceil(M.rs) + '…' : 'Destroyed — tap to switch spectated ship', CW / 2, CH - 30 - SA.b, '#ff7a7a'); return; }
   const lo = thresh(M.level), hi = thresh(M.level + 1), mc = H2.MODCOL || PCOL;
   H2.bars(ctx, { x: L0, y: T0, hpf: clamp(M.hp / M.hpMax, 0, 1), shf: M.shMax ? clamp(M.sh / M.shMax, 0, 1) : 0, hasShield: M.shMax > 0, xpf: M.level >= MAXLV ? 1 : clamp((M.scrap - lo) / (hi - lo), 0, 1), level: M.level, maxLevel: MAXLV, hp: M.hp, hpMax: M.hpMax, lv: M.lv, col: facC(me) }, TT);
+  if (COND === 'war') { ctx.textAlign = 'left'; ctx.fillStyle = '#ffe066'; ctx.font = 'bold 12px system-ui'; ctx.fillText('🪙 ' + Math.floor(M.gold || 0), L0 + 220, T0 + 14); }
   for (let j = 0; j < 3; j++) { const p = M.sk[j]; H2.skillButton(ctx, Lo.btn[j], { mod: p, cd: slotCd(M, j), cdMax: p >= 0 ? cdMax(M.lv, p) : 1, ready: p >= 0 && slotCd(M, j) <= 0, col: p >= 0 ? mc[p] : '#2a3350' }, TT); if (p >= 0 && slotCd(M, j) > 0) cdOverlay(Lo.btn[j], slotCd(M, j), cdMax(M.lv, p), mc[p]); }
   for (let j = 0; j < 2; j++) drawItemButton(Lo.item[j], M.item[j]);
+  if (COND === 'war') drawMinimap(V, M);
   if (JOY) H2.joystick(ctx, JOY);
   if (M.emp) banner('EMP — SYSTEMS DOWN', CW / 2, CH / 2 + 110, '#9cf');
   if (M.pending > 0 && M.offers.length) {
@@ -2400,6 +2450,7 @@ function drawHUD(V, me, M, now) {
   }
   // status bars (no numbers): hull, shield, xp, level pips, modules
   bar(L0, T0, 150, 8, M.hp / M.hpMax, M.hp / M.hpMax > 0.4 ? '#5ee07a' : '#ff5a5a');
+  if (COND === 'war') { ctx.textAlign = 'left'; ctx.fillStyle = '#ffe066'; ctx.font = 'bold 12px system-ui'; ctx.fillText('🪙 ' + Math.floor(M.gold || 0), L0 + 160, T0 + 8); }
   if (M.shMax) bar(L0, T0 + 11, 150, 5, M.sh / M.shMax, '#6cf');
   const lo = thresh(M.level), hi = thresh(M.level + 1);
   bar(L0, T0 + 19, 150, 5, M.level >= MAXLV ? 1 : (M.scrap - lo) / (hi - lo), '#ffe066');
@@ -2416,6 +2467,7 @@ function drawHUD(V, me, M, now) {
     if (has && cdv > 0) { ctx.fillStyle = '#fff'; ctx.font = `bold ${b.r * 0.62}px system-ui`; ctx.fillText(Math.ceil(cdv), b.x, b.y + b.r * 0.22); }
     else { ctx.fillStyle = has ? '#fff' : '#4a5270'; ctx.font = `bold ${b.r * 0.5}px system-ui`; ctx.fillText(has ? PARTS[p][2] : '–', b.x, b.y + b.r * 0.18); }
   }
+  if (COND === 'war') drawMinimap(V, M);
   if (JOY) { ctx.strokeStyle = '#ffffff55'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(JOY.bx, JOY.by, 56, 0, 7); ctx.stroke(); ctx.fillStyle = '#ffffff44'; ctx.beginPath(); ctx.arc(JOY.x, JOY.y, 24, 0, 7); ctx.fill(); }
   if (M.emp) { ctx.textAlign = 'center'; ctx.fillStyle = '#9cf'; ctx.font = 'bold 18px system-ui'; ctx.fillText('EMP — SYSTEMS DOWN', CW / 2, CH / 2 + 110); }
   // upgrade cards: top-centre row (never over the joystick), semi-transparent
