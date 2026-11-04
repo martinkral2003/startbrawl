@@ -176,6 +176,10 @@ const panel = (html, cls) => {   // keep the scroll position when the lobby re-r
 };
 const S = { id: rid(), name: '', mode: 'menu', host: false, code: '', base: '', c: null, lobby: null, timer: null };
 try { S.name = localStorage.getItem('sb_name') || ''; } catch (e) {}
+let CAMROT = false; try { CAMROT = localStorage.getItem('sb_camrot') === '1'; } catch (e) {}   // personal, client-only preference: rotate the camera so your ship always faces up
+let CAMA = 0;   // current camera rotation in radians (screen = world rotated by -CAMA); 0 when CAMROT is off or there's no ship to orient to
+function toggleCamRot() { CAMROT = !CAMROT; try { localStorage.setItem('sb_camrot', CAMROT ? '1' : '0'); } catch (e) {} if (S.mode === 'menu') showMenu(); else if (S.mode === 'lobby') showLobby(); }
+function BBROT(x, y) { ctx.translate(x, y); ctx.rotate(-CAMA); ctx.translate(-x, -y); }   // call right after ctx.save() + any translate to (x,y) so text/bars stay upright on screen
 const ART2 = !!(window.Art2 && Art2.ship && Art2.weapons && Art2.fx && Art2.shield);   // shaded sprites from art2/*.js (falls back to basic shapes)
 const W2 = (window.Art2 && Art2.world) || {}, H2 = (window.Art2 && Art2.hud) || {}, B2 = (window.Art2 && Art2.bg) || {};
 const AH = !!(H2.top && H2.bars && H2.skillButton && H2.upgradeCard && H2.joystick);
@@ -253,6 +257,7 @@ function showHow(i, first) {
 function howDone() { try { localStorage.setItem('sb_seen', '1'); } catch (e) {} showMenu(); }
 function togSnd(k) { SFX[k === 'music' ? 'setMusic' : 'setSfx'](k === 'music' ? !SFX.musicOn : !SFX.sfx); if (S.mode === 'menu') { readName(true); showMenu(); } else if (S.mode === 'lobby') showLobby(); }
 const sndRow = () => window.SFX ? `<div class="two"><button class="sec" onclick="togSnd('sfx')">${SFX.sfx ? '🔊' : '🔇'} Sound</button><button class="sec" onclick="togSnd('music')">${SFX.musicOn ? '🎵' : '🎵✕'} Music</button></div>` : '';
+const camRow = () => `<button class="sec" onclick="toggleCamRot()">${CAMROT ? '🧭 Cockpit camera: on' : '🧭 Cockpit camera: off'}</button>`;
 function showMenu(err) {
   S.mode = 'menu';
   const hashCode = (location.hash || '').replace('#', '').toUpperCase().slice(0, 4);
@@ -267,6 +272,7 @@ function showMenu(err) {
       <button class="sec" onclick="readName(true);showHow(0,false)">❓ How to play</button>
       <button class="sec" onclick="goFullscreen()">⛶ Fullscreen</button>
       ${sndRow()}
+      ${camRow()}
       <p class="dim hint">Teams or free-for-all. Score battle with respawns, capture points or last ship standing. Best played in landscape.</p>
       ${(() => { const ls = lifetimeStats(); return ls && ls.matches ? `<p class="dim hint">🏆 ${ls.wins}/${ls.matches} wins · ${ls.kills} kills · best level ${ls.bestLevel + 1}</p>` : ''; })()}
     </div></div><div class="rot">↻ Rotate your phone to landscape for the best view</div>`, 'menu');
@@ -288,6 +294,7 @@ function showLobby() {
       <button class="sec" onclick="addBot()" ${L.players.length >= MAXP ? 'disabled' : ''}>+ Add bot</button>
       <button onclick="startMatch()" ${canStart ? '' : 'disabled'}>Start game</button>` : `<p class="dim">${teams ? 'Teams' : 'Free for all'} · ${condName(L.cond)} · ${L.len === 'quick' ? 'Quick' : L.len === 'long' ? 'Long' : 'Normal'} · bots ${L.diff}</p><p class="dim">Waiting for the host…</p>`}
       ${sndRow()}
+      ${camRow()}
       <button class="sec" onclick="leaveRoom()">Leave</button>
     </div></div>`, 'lobby');
 }
@@ -416,8 +423,8 @@ function newGame(L) {
       ai: { t: 0, mode: 'roam', tgt: null, goal: null, err: 0, strafe: 1, strT: 0, seed: Math.floor(Math.random() * 3) } };
     makeOffers(s); G.ships.push(s);
   });
-  const LN = ['Classic', 'Asteroid Ring', 'Twin Suns', 'Wormhole Nexus'], mp = new URLSearchParams(location.search).get('map');
-  G.layout = mp != null && LN[+mp] ? +mp : Math.floor(Math.random() * 4);
+  const LN = ['Classic', 'Asteroid Ring', 'Twin Suns', 'Wormhole Nexus', 'Derelict Graveyard'], mp = new URLSearchParams(location.search).get('map');
+  G.layout = mp != null && LN[+mp] ? +mp : Math.floor(Math.random() * 5);
   const planet = (x, y) => ({ type: 0, x: x * R0, y: y * R0, r: 85, gr: 340, g: 280 });
   const hole = () => ({ type: 1, x: 0, y: 0, r: 45, gr: 480, g: 420 });   // gravity hole: slows you, can't kill, always escapable
   const minihole = (x, y) => ({ type: 1, x: x * R0, y: y * R0, r: 34, gr: 380, g: 340 });   // fixed smaller hole
@@ -436,17 +443,23 @@ function newGame(L) {
     G.wells.push(star(0, -0.3), star(0, 0.3), planet(-0.42, 0.05), planet(0.42, -0.05), planet(-0.8, 0.5), planet(0.8, -0.5), star(-0.72, -0.62), star(0.72, 0.62));
     const w = 0.12 * R0; G.streams.push({ x1: -0.6 * R0, y1: -w, x2: 0.6 * R0, y2: -w, w: 110 }, { x1: 0.6 * R0, y1: w, x2: -0.6 * R0, y2: w, w: 110 });
     neb(-0.5, -0.45, 300); neb(0.5, 0.45, 300); neb(0.1, 0.78, 280); neb(-0.1, -0.78, 280);
-  } else {   // Wormhole Nexus: no central black hole/suns, scattered gravity wells, two crossing wormhole pairs
+  } else if (G.layout === 3) {   // Wormhole Nexus: no central black hole/suns, scattered gravity wells, two crossing wormhole pairs
     G.wells.push(planet(-0.2, -0.6), planet(0.55, 0.15), planet(-0.7, 0.5), planet(0.15, 0.78), minihole(-0.5, 0.2), minihole(0.3, 0.62), minihole(0.68, -0.4));
     G.portals = [{ x: -0.62 * R0, y: -0.12 * R0 }, { x: 0.6 * R0, y: 0.5 * R0 }, { x: -0.12 * R0, y: 0.7 * R0 }, { x: 0.5 * R0, y: -0.6 * R0 }];
     neb(-0.55, -0.55, 280); neb(0.6, 0, 260); neb(0, -0.75, 260);
+  } else {   // Derelict Graveyard: lopsided, not mirrored — a dense, dangerous wreck field in one corner holds by far the richest salvage; the rest of the arena is comparatively open and safe
+    G.wells.push(planet(-0.6, -0.5), planet(0.15, 0.78), star(-0.15, 0.1), minihole(-0.5, 0.55));
+    G.portals = [{ x: -0.08 * R0, y: -0.02 * R0 }, { x: 0.66 * R0, y: -0.4 * R0 }];   // a quick way in and out of the graveyard from near the centre
+    neb(0.62, -0.38, 380); neb(0.8, -0.1, 280); neb(0.42, -0.58, 260);
+    graveyardField(0.62 * R0, -0.36 * R0, 70, 420);
   }
   logMsg('Map: ' + LN[G.layout]);
   const sl = (x1, y1, cx, cy, x2, y2, w = 120, str = 1) => G.streams.push({ x1: x1 * R0, y1: y1 * R0, cx: cx * R0, cy: cy * R0, x2: x2 * R0, y2: y2 * R0, w, str });
   if (G.layout === 0) { sl(-0.75, -0.7, -0.3, -0.9, 0.1, -0.72, 120, 0.9); sl(0.75, 0.7, 0.3, 0.9, -0.1, 0.72, 120, 0.8); sl(-0.15, 0.45, -0.4, 0, -0.15, -0.45, 100, 0.6); }
   else if (G.layout === 1) { sl(-0.3, -0.05, 0, 0.2, 0.3, -0.05, 110, 0.7); sl(0, -0.95, 0.2, -0.75, 0, -0.55, 110, 0.8); sl(0, 0.95, -0.2, 0.75, 0, 0.55, 110, 0.8); }
   else if (G.layout === 2) { sl(-0.3, -0.8, 0, -0.95, 0.3, -0.8, 140, 0.7); sl(0.3, 0.8, 0, 0.95, -0.3, 0.8, 140, 0.7); }
-  else { sl(-0.55, 0.65, -0.15, 0.3, 0.3, -0.1, 130, 0.75); sl(0.1, -0.7, 0.45, -0.3, 0.6, 0.35, 110, 0.6); }
+  else if (G.layout === 3) { sl(-0.55, 0.65, -0.15, 0.3, 0.3, -0.1, 130, 0.75); sl(0.1, -0.7, 0.45, -0.3, 0.6, 0.35, 110, 0.6); }
+  else { sl(-0.5, 0.55, -0.15, 0.1, 0.35, -0.3, 120, 0.7); sl(-0.75, -0.6, -0.35, -0.75, 0.05, -0.6, 110, 0.5); }   // one lane sweeps toward the graveyard's mouth
   G.streams = G.streams.map(buildStream);
   G.pads = [[-0.55, -0.2], [0.55, 0.2]].map(([x, y]) => ({ x: x * R0, y: y * R0, r: 110 }));   // repair relays: heal any ship inside
   G.bea = (G.cond !== 'last' ? [[0, 0], [0, -0.58], [0, 0.58]] : []).map(([x, y]) => ({ x: x * R0, y: y * R0, r: 170, p: 0, owner: -1, cap: -1, cont: 0 }));
@@ -476,6 +489,14 @@ function richCluster() {
   const p = freeSpot(300, 0.75); if (!p) return;
   for (let i = 0; i < 7; i++) { const r = rnd(24, 40), aa = rnd(0, 6.28), rr = rnd(0, 160); G.ast.push({ id: G.nid++, x: p.x + Math.cos(aa) * rr, y: p.y + Math.sin(aa) * rr, r, hp: r * 2.2, hpMax: r * 2.2, rich: 1 }); }
   return p;
+}
+function graveyardField(cx, cy, n, spread) {   // Derelict Graveyard: a dense off-centre cluster of hull-wreck rocks and rich salvage — the map's one real hazard/reward hotspot
+  for (let i = 0; i < n; i++) {
+    const a = rnd(0, 6.283), r = Math.sqrt(Math.random()) * spread, x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
+    if (G.ships.some(s => dist(s, { x, y }) < 300) || G.wells.some(w => dist(w, { x, y }) < w.r + 140)) continue;
+    if (Math.random() < 0.3) { const rr = rnd(55, 95); G.ast.push({ id: G.nid++, x, y, r: rr, hp: 1e6, hpMax: 1e6, big: 1 }); }   // a wrecked hull: solid cover
+    else { const rr = rnd(16, 34), rich = Math.random() < 0.45; G.ast.push({ id: G.nid++, x, y, r: rr, hp: rr * 2.2, hpMax: rr * 2.2, rich: rich ? 1 : 0 }); }   // scattered debris, some of it salvage-rich
+  }
 }
 function bigRock() {   // large indestructible rocks: cover that blocks shots and ships
   const p = freeSpot(320, 0.85); if (!p) return; const r = rnd(70, 115);
@@ -1616,7 +1637,10 @@ function uiHit(x, y) {
 }
 const DEMOZ = +((location.search.match(/[?&]zoom=([0-9.]+)/) || [])[1]) || 1;
 const zoomOf = () => Math.min(CW, CH) / (Math.min(CW, CH) < 500 ? 600 : 700) * DEMOZ / sensMul(MY_SENS);
-function worldAt(sx, sy) { const Z = zoomOf(); return { x: R.cam.x + (sx - CW / 2) / Z, y: R.cam.y + (sy - CH / 2) / Z }; }
+function worldAt(sx, sy) {
+  const Z = zoomOf(), dx = sx - CW / 2, dy = sy - CH / 2, ca = Math.cos(CAMA), sa = Math.sin(CAMA);
+  return { x: R.cam.x + (ca * dx + sa * dy) / Z, y: R.cam.y + (-sa * dx + ca * dy) / Z };
+}
 function tapTarget(sx, sy) {
   if (S.mode !== 'game' || !VIEWNOW || !R.cam) return;
   const w = worldAt(sx, sy), V = VIEWNOW, me = S.host ? G.me : C.me, mt = PL[me] ? PL[me].fac : 0, slop = 50 / zoomOf();
@@ -1677,10 +1701,11 @@ function readInput() {
   if (JOY) { const dx = JOY.x - JOY.bx, dy = JOY.y - JOY.by, l = Math.hypot(dx, dy), m = clamp((l - 8) / 50, 0, 1); if (l) { mx = dx / l * m; my = dy / l * m; } }
   mx = clamp(mx + (K.KeyD || K.ArrowRight ? 1 : 0) - (K.KeyA || K.ArrowLeft ? 1 : 0), -1, 1);
   my = clamp(my + (K.KeyS || K.ArrowDown ? 1 : 0) - (K.KeyW || K.ArrowUp ? 1 : 0), -1, 1);
+  if (CAMA) { const ca = Math.cos(CAMA), sa = Math.sin(CAMA), wx = ca * mx + sa * my, wy = -sa * mx + ca * my; mx = wx; my = wy; }   // screen push direction -> world direction
   const now = performance.now();
   return { mx: +mx.toFixed(2), my: +my.toFixed(2), tg: myTg, s0: K.Space || now < SKP[0] ? 1 : 0, s1: K.KeyQ || now < SKP[1] ? 1 : 0, s2: K.KeyE || now < SKP[2] ? 1 : 0,
     i0: K.KeyR || now < SKP[3] ? 1 : 0, i1: K.KeyF || now < SKP[4] ? 1 : 0,
-    sa: [0, 1, 2].map(j => (AIMV[j] && now < AIMV[j].until ? [+AIMV[j].a.toFixed(3), +AIMV[j].pw.toFixed(2)] : 0)) };
+    sa: [0, 1, 2].map(j => (AIMV[j] && now < AIMV[j].until ? [+(AIMV[j].a - CAMA).toFixed(3), +AIMV[j].pw.toFixed(2)] : 0)) };
 }
 function sendInput() { if (S.mode === 'game' && C) pub('cmd', Object.assign({ id: S.id }, readInput())); }
 function doPick(k) {
@@ -1766,9 +1791,9 @@ function drawAimPreview(M, A_) {
   ctx.restore();
 }
 function shipTag(s, r, isMe) {   // plate above a ship: level badge + name (green = ally, red = enemy), segmented hull bar, shield bar, status
-  const rl = isMe ? 0 : PL[s.i].fac === myFac() ? 1 : 2, rc = RELC[rl], w = 74, x = s.x, y = s.y - r * 1.9 - 20, col = facC(s.i);
+  const rl = isMe ? 0 : PL[s.i].fac === myFac() ? 1 : 2, rc = RELC[rl], w = 74, x = 0, y = -r * 1.9 - 20, col = facC(s.i);
   const hpf = clamp(s.hp / s.hpMax, 0, 1), shf = s.shMax ? clamp(s.sh / s.shMax, 0, 1) : 0, segs = clamp(Math.round(s.hpMax / 100), 5, 14), gap = 1, sw = (w - gap * (segs - 1)) / segs;
-  ctx.save(); ctx.textBaseline = 'alphabetic';
+  ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(-CAMA); ctx.textBaseline = 'alphabetic';   // plate stays screen-upright even when the camera rotates with the ship
   ctx.fillStyle = 'rgba(4,8,14,0.72)'; ctx.fillRect(x - w / 2 - 2, y - 17, w + 4, 17 + 8 + (s.shMax ? 5 : 0));
   ctx.fillStyle = rc; ctx.fillRect(x - w / 2 - 2, y - 17, 2, 17 + 8 + (s.shMax ? 5 : 0));
   ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x - w / 2 + 9, y - 8, 8, 0, 7); ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 1.5; ctx.stroke();
@@ -1872,7 +1897,7 @@ function drawOutpost(n) {   // hire outpost: stand in the ring for 2 s to buy th
   ctx.globalAlpha = 1;
   const g = ctx.createRadialGradient(-8, -10, 3, 0, 0, 36); g.addColorStop(0, '#6a738c'); g.addColorStop(1, '#1d2233'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 30, 0, 7); ctx.fill(); ctx.strokeStyle = C.col; ctx.lineWidth = 3; ctx.stroke();
   ctx.rotate(n.ang); ctx.fillStyle = '#2b3347'; for (let i = 0; i < 3; i++) { ctx.rotate(2.094); ctx.fillRect(26, -5, 22, 10); ctx.fillStyle = C.col; ctx.fillRect(44, -5, 4, 10); ctx.fillStyle = '#2b3347'; }
-  ctx.rotate(-n.ang); ctx.fillStyle = C.col; ctx.font = 'bold 16px system-ui'; ctx.textAlign = 'center'; ctx.fillText(C.tag, 0, 6);
+  ctx.rotate(-n.ang - CAMA); ctx.fillStyle = C.col; ctx.font = 'bold 16px system-ui'; ctx.textAlign = 'center'; ctx.fillText(C.tag, 0, 6);
   ctx.font = 'bold 12px system-ui'; ctx.fillStyle = '#ffe9a0'; ctx.fillText('HIRE ' + C.n.toUpperCase(), 0, -48); ctx.fillStyle = '#cfd6e6'; ctx.font = '11px system-ui'; ctx.fillText(C.cost + ' scrap', 0, -34);
   ctx.restore();
 }
@@ -1902,7 +1927,7 @@ function drawTurret(n) {   // deployed Sentry Turret: team-ringed hex base, barr
     ctx.fillStyle = '#39425a'; ctx.fillRect(2, -7, 22, 4); ctx.fillRect(2, 3, 22, 4); ctx.fillStyle = '#ff8f2e'; ctx.fillRect(22, -7, 3, 4); ctx.fillRect(22, 3, 3, 4);
   }
   ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0, 0, 6, 0, 7); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.beginPath(); ctx.arc(-1.5, -2, 2.4, 0, 7); ctx.fill();
-  ctx.rotate(-n.ang);
+  ctx.rotate(-n.ang - CAMA);
   ctx.strokeStyle = col; ctx.globalAlpha = 0.85; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(0, 0, 25, -Math.PI / 2, -Math.PI / 2 + life * 6.283); ctx.stroke(); ctx.lineCap = 'butt'; ctx.globalAlpha = 1;
   if (n.hp < n.hpMax) { ctx.fillStyle = '#0009'; ctx.fillRect(-16, 30, 32, 3); ctx.fillStyle = mine ? '#5ee07a' : '#ff7a7a'; ctx.fillRect(-16, 30, 32 * clamp(n.hp / n.hpMax, 0, 1), 3); }
   ctx.restore();
@@ -1930,10 +1955,11 @@ function drawShipNeut(n) {   // stranded ship (type 5) and rescued escort (type 
   const a = { id: 200 + n.id, x: n.x, y: n.y, ang: n.ang, vx: 0, vy: 0, lv: CLV[n.cls || 0], col, seed: n.id, thr: esc ? 0.6 : 0, boost: 0, fire: 0, hit: 0, hpf: esc ? n.hp / n.hpMax : 0.35, shf: 0, emp: esc ? 0 : 1, alive: true, zoom: FZ };
   let ok = false; if (ART2) ok = A2(() => Art2.ship.draw(ctx, a, TT));
   if (!ok) { ctx.save(); ctx.translate(n.x, n.y); ctx.rotate(n.ang); ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(18, 0); ctx.lineTo(-12, 10); ctx.lineTo(-12, -10); ctx.fill(); ctx.restore(); }
-  if (esc) { ctx.strokeStyle = PL[n.ow] && PL[n.ow].fac === myFac() ? RELC[1] : RELC[2]; ctx.globalAlpha = 0.65; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(n.x, n.y, 24 + (C.rad - 18) * 0.5, 0, 7); ctx.stroke(); ctx.globalAlpha = 1; ctx.fillStyle = C.col; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center'; ctx.fillText(C.tag, n.x, n.y - 33); if (n.hp < n.hpMax) { ctx.fillStyle = '#0009'; ctx.fillRect(n.x - 15, n.y - 30, 30, 3); ctx.fillStyle = '#5ee07a'; ctx.fillRect(n.x - 15, n.y - 30, 30 * n.hp / n.hpMax, 3); } return; }
+  if (esc) { ctx.strokeStyle = PL[n.ow] && PL[n.ow].fac === myFac() ? RELC[1] : RELC[2]; ctx.globalAlpha = 0.65; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(n.x, n.y, 24 + (C.rad - 18) * 0.5, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
+    ctx.save(); BBROT(n.x, n.y); ctx.fillStyle = C.col; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center'; ctx.fillText(C.tag, n.x, n.y - 33); if (n.hp < n.hpMax) { ctx.fillStyle = '#0009'; ctx.fillRect(n.x - 15, n.y - 30, 30, 3); ctx.fillStyle = '#5ee07a'; ctx.fillRect(n.x - 15, n.y - 30, 30 * n.hp / n.hpMax, 3); } ctx.restore(); return; }
   ctx.strokeStyle = '#7fe3ff'; ctx.lineWidth = 2; ctx.setLineDash([8, 8]); ctx.lineDashOffset = -TT * 18; ctx.beginPath(); ctx.arc(n.x, n.y, 110, 0, 7); ctx.stroke(); ctx.setLineDash([]);
   if (n.res > 0) { ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(n.x, n.y, 110, -Math.PI / 2, -Math.PI / 2 + n.res * 6.283); ctx.stroke(); ctx.lineCap = 'butt'; }
-  ctx.fillStyle = '#7fe3ff'; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(TT * 5); ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText((n.conv ? 'CONVOY' : 'SOS') + ' · ' + C.n + ' — stay close to rescue', n.x, n.y - 32); ctx.globalAlpha = 1;
+  ctx.save(); BBROT(n.x, n.y); ctx.fillStyle = '#7fe3ff'; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(TT * 5); ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText((n.conv ? 'CONVOY' : 'SOS') + ' · ' + C.n + ' — stay close to rescue', n.x, n.y - 32); ctx.globalAlpha = 1; ctx.restore();
 }
 function drawSentry(n) {
   ctx.save(); ctx.translate(n.x, n.y);
@@ -1975,7 +2001,7 @@ function drawEliteRing(n) {   // tougher variant of a common neutral: a pulsing 
   ctx.stroke(); ctx.restore();
   ctx.strokeStyle = '#ffb347'; ctx.globalAlpha = 0.5 + 0.2 * pulse; ctx.lineWidth = 1.5; ctx.setLineDash([8, 6]); ctx.lineDashOffset = -TT * 24;
   ctx.beginPath(); ctx.arc(n.x, n.y, n.rad + 16, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
-  ctx.fillStyle = '#ffd9a0'; ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center'; ctx.fillText('ELITE', n.x, n.y - n.rad - 16);
+  ctx.save(); BBROT(n.x, n.y); ctx.fillStyle = '#ffd9a0'; ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center'; ctx.fillText('ELITE', n.x, n.y - n.rad - 16); ctx.restore();
 }
 function drawNeut(n) {
   if (n.type === 3) { drawSentry(n); return; }
@@ -1986,15 +2012,15 @@ function drawNeut(n) {
     const ok = W2.leviathan && A2(() => W2.leviathan(ctx, n, TT));
     if (!ok) { ctx.fillStyle = '#ff3d6e'; ctx.beginPath(); ctx.arc(n.x, n.y, n.rad, 0, 7); ctx.fill(); }
     ctx.strokeStyle = '#ff3d3d'; ctx.globalAlpha = 0.5; ctx.lineWidth = 4; ctx.setLineDash([16, 10]); ctx.lineDashOffset = -TT * 20; ctx.beginPath(); ctx.arc(n.x, n.y, n.rad + 24, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
-    ctx.fillStyle = '#ff9bb3'; ctx.font = 'bold 14px system-ui'; ctx.textAlign = 'center'; ctx.fillText('DREADNOUGHT', n.x, n.y - n.rad - 30);
-    ctx.fillStyle = '#0009'; ctx.fillRect(n.x - 50, n.y - n.rad - 22, 100, 6); ctx.fillStyle = '#ff5a5a'; ctx.fillRect(n.x - 50, n.y - n.rad - 22, 100 * n.hp / n.hpMax, 6);
+    ctx.save(); BBROT(n.x, n.y); ctx.fillStyle = '#ff9bb3'; ctx.font = 'bold 14px system-ui'; ctx.textAlign = 'center'; ctx.fillText('DREADNOUGHT', n.x, n.y - n.rad - 30);
+    ctx.fillStyle = '#0009'; ctx.fillRect(n.x - 50, n.y - n.rad - 22, 100, 6); ctx.fillStyle = '#ff5a5a'; ctx.fillRect(n.x - 50, n.y - n.rad - 22, 100 * n.hp / n.hpMax, 6); ctx.restore();
     return;
   }
   if (n.type === 4) {
     const ok = W2.leviathan && A2(() => W2.leviathan(ctx, n, TT));
     if (!ok) { ctx.fillStyle = '#ff3d6e'; ctx.beginPath(); ctx.arc(n.x, n.y, n.rad, 0, 7); ctx.fill(); }
-    ctx.fillStyle = '#ffb0c0'; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center'; ctx.fillText('WARSHIP', n.x, n.y - n.rad - 16);
-    if (n.hp < n.hpMax) { ctx.fillStyle = '#0009'; ctx.fillRect(n.x - 24, n.y - n.rad - 10, 48, 4); ctx.fillStyle = '#ff7a7a'; ctx.fillRect(n.x - 24, n.y - n.rad - 10, 48 * n.hp / n.hpMax, 4); }
+    ctx.save(); BBROT(n.x, n.y); ctx.fillStyle = '#ffb0c0'; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center'; ctx.fillText('WARSHIP', n.x, n.y - n.rad - 16);
+    if (n.hp < n.hpMax) { ctx.fillStyle = '#0009'; ctx.fillRect(n.x - 24, n.y - n.rad - 10, 48, 4); ctx.fillStyle = '#ff7a7a'; ctx.fillRect(n.x - 24, n.y - n.rad - 10, 48 * n.hp / n.hpMax, 4); } ctx.restore();
     return;
   }
   if (n.type === 10) {
@@ -2004,14 +2030,16 @@ function drawNeut(n) {
       ctx.strokeStyle = '#5effa0'; ctx.globalAlpha = 0.5 + 0.3 * res; ctx.lineWidth = 3 + res * 6; ctx.setLineDash([14, 8]); ctx.lineDashOffset = -TT * 30; ctx.beginPath(); ctx.arc(n.x, n.y, n.rad + 24, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
     }
     const res = n.res || 0;
-    ctx.fillStyle = '#baffd6'; ctx.font = 'bold 14px system-ui'; ctx.textAlign = 'center'; ctx.fillText('HARVESTER' + (res > 0.1 ? ' · ADAPTING' : ''), n.x, n.y - n.rad - 32);
-    ctx.fillStyle = '#0009'; ctx.fillRect(n.x - 55, n.y - n.rad - 22, 110, 6); ctx.fillStyle = '#5effa0'; ctx.fillRect(n.x - 55, n.y - n.rad - 22, 110 * n.hp / n.hpMax, 6);
+    ctx.save(); BBROT(n.x, n.y); ctx.fillStyle = '#baffd6'; ctx.font = 'bold 14px system-ui'; ctx.textAlign = 'center'; ctx.fillText('HARVESTER' + (res > 0.1 ? ' · ADAPTING' : ''), n.x, n.y - n.rad - 32);
+    ctx.fillStyle = '#0009'; ctx.fillRect(n.x - 55, n.y - n.rad - 22, 110, 6); ctx.fillStyle = '#5effa0'; ctx.fillRect(n.x - 55, n.y - n.rad - 22, 110 * n.hp / n.hpMax, 6); ctx.restore();
     return;
   }
   const fn = n.type === 0 ? W2.scout : n.type === 1 ? W2.hauler : W2.leviathan;
   if (fn && A2(() => fn(ctx, n, TT))) {
+    ctx.save(); BBROT(n.x, n.y);
     if (n.hp < n.hpMax) { const w = n.rad; ctx.fillStyle = '#0009'; ctx.fillRect(n.x - w / 2, n.y - n.rad - 12, w, 4); ctx.fillStyle = '#ff7a7a'; ctx.fillRect(n.x - w / 2, n.y - n.rad - 12, w * n.hp / n.hpMax, 4); }
     if (n.type === 2) { ctx.fillStyle = '#ff9bb3'; ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText('LEVIATHAN', n.x, n.y - n.rad - 18); }
+    ctx.restore();
     return;
   }
   drawNeutOld(n);
@@ -2022,8 +2050,10 @@ function drawNeutOld(n) {
   else if (n.type === 1) { ctx.fillStyle = '#1f2a1c'; ctx.strokeStyle = '#8fbf6a'; ctx.lineWidth = 3; ctx.beginPath(); for (let i = 0; i < 6; i++) ctx.lineTo(Math.cos(i * 1.047) * 26, Math.sin(i * 1.047) * 20); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#ffd34d'; ctx.fillRect(-6, -3, 12, 6); }
   else { ctx.fillStyle = '#240a14'; ctx.strokeStyle = '#ff3d6e'; ctx.lineWidth = 4; ctx.beginPath(); for (let i = 0; i < 8; i++) ctx.lineTo(Math.cos(i * 0.785) * 70, Math.sin(i * 0.785) * 56); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#ff3d6e'; ctx.beginPath(); ctx.arc(30, 0, 12, 0, 7); ctx.fill(); ctx.fillRect(-40, -6, 50, 12); }
   ctx.restore();
+  ctx.save(); BBROT(n.x, n.y);
   if (n.hp < n.hpMax) { const w = n.rad; ctx.fillStyle = '#0009'; ctx.fillRect(n.x - w / 2, n.y - n.rad - 12, w, 4); ctx.fillStyle = '#ff7a7a'; ctx.fillRect(n.x - w / 2, n.y - n.rad - 12, w * n.hp / n.hpMax, 4); }
   if (n.type === 2) { ctx.fillStyle = '#ff9bb3'; ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText('LEVIATHAN', n.x, n.y - n.rad - 18); }
+  ctx.restore();
 }
 function drawProj(p, tt) {
   const c = p.k === 6 ? '#ff9a3d' : p.o >= 0 ? facC(p.o) : '#ff9a3d';
@@ -2128,6 +2158,7 @@ function frame(now) {
   } else { if (!C) return; predict(dt, readInput()); V = buildView(now); me = C.me; if (!V) return; }
   VIEWNOW = V;
   const M = V.ships[me]; LASTM = M && M.alive ? M : null;
+  CAMA = (CAMROT && LASTM) ? (-Math.PI / 2 - LASTM.ang) : 0;
   uiSounds(M);
   let fo = LASTM;
   if (!fo && COND !== 'last' && M) fo = M;
@@ -2142,7 +2173,8 @@ function frame(now) {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   if (!(B2.draw && A2(() => B2.draw(ctx, { x: cam.x, y: cam.y, zoom: Z, w: CW, h: CH }, tt, V.layout || 0)))) for (const st of stars) { const x = (((st.x * CW - cam.x * st.z * Z) % CW) + CW) % CW, y = (((st.y * CH - cam.y * st.z * Z) % CH) + CH) % CH; ctx.fillStyle = `rgba(200,215,255,${0.25 + st.z})`; ctx.fillRect(x, y, st.z * 3, st.z * 3); }
   if (QUAL > 0) drawDust(cam, Z, dt);
-  ctx.setTransform(DPR * Z, 0, 0, DPR * Z, DPR * (CW / 2 - cam.x * Z), DPR * (CH / 2 - cam.y * Z));
+  { const ca = Math.cos(CAMA), sa = Math.sin(CAMA);   // CAMA=0 reduces this to the plain pan+scale transform below
+    ctx.setTransform(DPR * Z * ca, DPR * Z * sa, -DPR * Z * sa, DPR * Z * ca, DPR * (CW / 2 - Z * (ca * cam.x - sa * cam.y)), DPR * (CH / 2 - Z * (sa * cam.x + ca * cam.y))); }
   ctx.textAlign = 'center';
   // danger zone + wells
   if (!(W2.storm && A2(() => W2.storm(ctx, V.z, { x0: cam.x - CW / 2 / Z, y0: cam.y - CH / 2 / Z, x1: cam.x + CW / 2 / Z, y1: cam.y + CH / 2 / Z }, tt)))) {
@@ -2166,7 +2198,7 @@ function frame(now) {
     const g = ctx.createRadialGradient(h.x, h.y, h.r * 0.25, h.x, h.y, h.r); g.addColorStop(0, 'rgba(150,255,60,0.05)'); g.addColorStop(0.75, 'rgba(150,255,60,0.15)'); g.addColorStop(1, 'rgba(170,255,70,0.3)');
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, 7); ctx.fill();
     ctx.strokeStyle = '#b6ff4d'; ctx.globalAlpha = 0.5; ctx.lineWidth = 3; ctx.setLineDash([14, 12]); ctx.lineDashOffset = tt * 14; ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, 7); ctx.stroke(); ctx.setLineDash([]);
-    ctx.fillStyle = '#d4ff7a'; ctx.globalAlpha = 0.28 + 0.12 * Math.sin(tt * 2 + h.x); ctx.font = 'bold 44px system-ui'; ctx.textAlign = 'center'; ctx.fillText('☢', h.x, h.y + 15); ctx.globalAlpha = 1;
+    ctx.save(); BBROT(h.x, h.y); ctx.fillStyle = '#d4ff7a'; ctx.globalAlpha = 0.28 + 0.12 * Math.sin(tt * 2 + h.x); ctx.font = 'bold 44px system-ui'; ctx.textAlign = 'center'; ctx.fillText('☢', h.x, h.y + 15); ctx.globalAlpha = 1; ctx.restore();
   }
   for (const f of V.fields || []) {   // repair / toxic fields
     if (!vis(f.x, f.y, f.r + 10)) continue;
@@ -2254,14 +2286,14 @@ function frame(now) {
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.lineCap = 'butt'; }
   if (ART2) drawSiphons(V);
   if (DMGN.length) {   // floating damage numbers (constant on-screen size)
-    ctx.save(); ctx.textAlign = 'center'; ctx.lineJoin = 'round'; ctx.font = 'bold ' + Math.round(14 / Z) + 'px system-ui'; ctx.lineWidth = 3 / Z; ctx.strokeStyle = 'rgba(0,0,0,0.75)';
-    for (let i = DMGN.length - 1; i >= 0; i--) { const d = DMGN[i]; d.t += dt; if (d.t > 0.9) { DMGN.splice(i, 1); continue; } const k = d.t / 0.9, yy = d.y - k * 34 / Z * 1.6; ctx.globalAlpha = 1 - k * k; const big = d.v >= 40; ctx.fillStyle = d.me ? '#ff6a5a' : big ? '#ffd24a' : '#fff4d6'; const tx = String(d.v); ctx.strokeText(tx, d.x, yy); ctx.fillText(tx, d.x, yy); }
-    ctx.restore();
+    ctx.textAlign = 'center'; ctx.lineJoin = 'round'; ctx.font = 'bold ' + Math.round(14 / Z) + 'px system-ui'; ctx.lineWidth = 3 / Z; ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+    for (let i = DMGN.length - 1; i >= 0; i--) { const d = DMGN[i]; d.t += dt; if (d.t > 0.9) { DMGN.splice(i, 1); continue; } const k = d.t / 0.9, yy = d.y - k * 34 / Z * 1.6; ctx.globalAlpha = 1 - k * k; const big = d.v >= 40; ctx.fillStyle = d.me ? '#ff6a5a' : big ? '#ffd24a' : '#fff4d6'; const tx = String(d.v); ctx.save(); BBROT(d.x, d.y); ctx.strokeText(tx, d.x, yy); ctx.fillText(tx, d.x, yy); ctx.restore(); }
+    ctx.globalAlpha = 1;
   }
   if (LVLUP.length) {   // "LEVEL UP" floats above any ship that just levelled, host or client, friend or foe
-    ctx.save(); ctx.textAlign = 'center'; ctx.lineJoin = 'round'; ctx.font = 'bold ' + Math.round(15 / Z) + 'px system-ui'; ctx.lineWidth = 3 / Z; ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.fillStyle = '#ffd34d';
-    for (let i = LVLUP.length - 1; i >= 0; i--) { const d = LVLUP[i]; d.t += dt; if (d.t > 1.1) { LVLUP.splice(i, 1); continue; } const k = d.t / 1.1, yy = d.y - 20 / Z - k * 46 / Z; ctx.globalAlpha = 1 - k * k; ctx.strokeText('LEVEL UP', d.x, yy); ctx.fillText('LEVEL UP', d.x, yy); }
-    ctx.restore();
+    ctx.textAlign = 'center'; ctx.lineJoin = 'round'; ctx.font = 'bold ' + Math.round(15 / Z) + 'px system-ui'; ctx.lineWidth = 3 / Z; ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.fillStyle = '#ffd34d';
+    for (let i = LVLUP.length - 1; i >= 0; i--) { const d = LVLUP[i]; d.t += dt; if (d.t > 1.1) { LVLUP.splice(i, 1); continue; } const k = d.t / 1.1, yy = d.y - 20 / Z - k * 46 / Z; ctx.globalAlpha = 1 - k * k; ctx.save(); BBROT(d.x, d.y); ctx.strokeText('LEVEL UP', d.x, yy); ctx.fillText('LEVEL UP', d.x, yy); ctx.restore(); }
+    ctx.globalAlpha = 1;
   }
   { const nz = performance.now();   // arc storm lightning
     ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -2347,7 +2379,8 @@ function drawHUD2(V, me, M, now) {
   const Lo = layout(), L0 = SA.l + 10, T0 = SA.t + 8, cap = COND === 'capture', Zz = zoomOf(), cm = R.cam, zt0 = (COND === 'score' ? ZS_T0 : ZONE_T0) * (LENF[LEN] || 1);
   // edge pointers to beacons / Leviathan / supply drops when off-screen
   const arrow = (wx, wy, col) => {
-    const sx = CW / 2 + (wx - cm.x) * Zz, sy = CH / 2 + (wy - cm.y) * Zz, m = 26;
+    const rx = wx - cm.x, ry = wy - cm.y, ca = Math.cos(CAMA), sa = Math.sin(CAMA);
+    const sx = CW / 2 + (ca * rx - sa * ry) * Zz, sy = CH / 2 + (sa * rx + ca * ry) * Zz, m = 26;
     if (sx > m && sx < CW - m && sy > m + SA.t && sy < CH - m) return;
     const dx = sx - CW / 2, dy = sy - CH / 2, k = Math.min((CW / 2 - m) / Math.abs(dx || 1), (CH / 2 - m) / Math.abs(dy || 1));
     H2.arrow(ctx, CW / 2 + dx * k, CH / 2 + dy * k, Math.atan2(dy, dx), col);
@@ -2386,7 +2419,8 @@ function drawHUD(V, me, M, now) {
   // edge pointers replace the minimap: beacons, the Leviathan and supply drops when off-screen
   const Zz = zoomOf(), cm = R.cam;
   const arrow = (wx, wy, col) => {
-    const sx = CW / 2 + (wx - cm.x) * Zz, sy = CH / 2 + (wy - cm.y) * Zz, m = 26;
+    const rx = wx - cm.x, ry = wy - cm.y, ca = Math.cos(CAMA), sa = Math.sin(CAMA);
+    const sx = CW / 2 + (ca * rx - sa * ry) * Zz, sy = CH / 2 + (sa * rx + ca * ry) * Zz, m = 26;
     if (sx > m && sx < CW - m && sy > m + SA.t && sy < CH - m) return;
     const dx = sx - CW / 2, dy = sy - CH / 2, k = Math.min((CW / 2 - m) / Math.abs(dx || 1), (CH / 2 - m) / Math.abs(dy || 1));
     ctx.save(); ctx.translate(CW / 2 + dx * k, CH / 2 + dy * k); ctx.rotate(Math.atan2(dy, dx)); ctx.fillStyle = col; ctx.globalAlpha = 0.85;
