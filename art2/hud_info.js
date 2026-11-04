@@ -83,16 +83,6 @@
       rr(c, x, y, bw, bh, bh / 2); c.lineWidth = 1; c.strokeStyle = 'rgba(190,225,255,0.45)'; c.stroke();
       text(c, fmt(st.time), cx, y + bh + 14, 14, '#e8f4ff', 'center', 700);
       bottom = y0 + 41;
-    } else if (st.cond === 'war') {
-      const hp = Array.isArray(st.baseHp) ? st.baseHp : [0, 0], bw = 110, bh = 10, w2 = bw * 2 + 40;
-      panel(c, cx - w2 / 2, y0, w2, 44, 8);
-      for (let i = 0; i < 2; i++) {
-        const cc = f(i), x = i === 0 ? cx - w2 / 2 + 12 : cx + w2 / 2 - 12 - bw, pct = clamp01(num(hp[i], 0));
-        text(c, Math.ceil(pct * 100) + '%', x + bw / 2, y0 + 11, 10, cc, 'center', 700);
-        segBar(c, x, y0 + 17, bw, bh, pct, A.mix ? A.mix(cc, 0.3) : cc, cc, 10);
-      }
-      text(c, fmt(st.time), cx, y0 + 39, 11, ACC, 'center', 700);
-      bottom = y0 + 44;
     } else if (st.cond === 'score') {
       const sc = Array.isArray(st.scores) ? st.scores : [], n = Math.max(1, sc.length), cw = n <= 2 ? 64 : 38, w = Math.max(190, n * cw + 40);
       panel(c, cx - w / 2, y0, w, 44, 8);

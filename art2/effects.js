@@ -112,8 +112,8 @@
     sparks(x, y, 5, 260, 0, o.col, o.ang, o.ang === undefined ? 0 : 1.6);
   }
   function shockwave(x, y, o) {
-    ring(x, y, o.r || 120, 0.7, 0, '#bff4ff', 0.9, 0.05, 6, 1);
-    ring(x, y, (o.r || 120) * 0.7, 0.5, 0.05, '#5fd8ff', 0.4, 0.04, 4, 0);
+    ring(x, y, o.r || 120, 0.7, 0, o.col || '#bff4ff', 0.9, 0.05, 6, 1);
+    ring(x, y, (o.r || 120) * 0.7, 0.5, 0.05, o.col2 || o.col || '#5fd8ff', 0.4, 0.04, 4, 0);
   }
   const KINDS = { explosion, spark, death, shockwave, dashTrail, emp, repair };
 

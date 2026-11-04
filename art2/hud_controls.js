@@ -3,7 +3,7 @@
   const A = window.Art2 = window.Art2 || {};
   const H = A.hud = A.hud || {};
   const TAU = Math.PI * 2;
-  const MODCOL = H.MODCOL = ['#c8d0e0', '#ff6b6b', '#66ccff', '#99eeff', '#69db7c', '#ffa94d', '#ffd43b', '#b197fc', '#ff8787', '#74c0fc', '#99ffff', '#ffb870', '#e599f7', '#a9b8ff', '#ff6a4d', '#7fd8ff', '#8cf0a0', '#fff07a', '#ffb3e6', '#ffb347', '#d96bff', '#9fe8ff', '#7affc8', '#ffe45e', '#ff9d6e', '#8af0ff', '#9df7ff', '#c8ff9f'];
+  const MODCOL = H.MODCOL = ['#c8d0e0', '#ff6b6b', '#66ccff', '#99eeff', '#69db7c', '#ffa94d', '#ffd43b', '#b197fc', '#ff8787', '#74c0fc', '#99ffff', '#ffb870', '#e599f7', '#a9b8ff', '#ff6a4d', '#7fd8ff', '#8cf0a0', '#fff07a', '#ffb3e6', '#ffb347', '#d96bff', '#9fe8ff', '#7affc8', '#ffe45e', '#ff9d6e', '#8af0ff', '#9df7ff', '#c8ff9f', '#c9a7ff', '#aefcff', '#9bff5e', '#ff6ad5'];
   const FONT = 'system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
   const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 
@@ -153,6 +153,27 @@
       c.beginPath(); c.moveTo(-0.7, 0.15); c.lineTo(0.7, 0.15); c.lineTo(0.55, 0.85); c.lineTo(-0.55, 0.85); c.closePath(); c.globalAlpha *= 0.3; c.fill(); c.globalAlpha /= 0.3; c.stroke();
       c.beginPath(); c.moveTo(-0.7, 0.15); c.lineTo(0.7, 0.15); c.stroke();
       for (const [x, y] of [[-0.35, -0.55], [0.1, -0.8], [0.4, -0.35]]) { c.beginPath(); c.arc(x, y, 0.13, 0, TAU); c.fill(); }
+    },
+    // 28 DCY: decoy ping (dashed ring + faint phantom silhouette)
+    (c) => {
+      c.setLineDash([0.18, 0.16]); c.beginPath(); c.arc(0, 0, 0.88, 0, TAU); c.stroke(); c.setLineDash([]);
+      c.globalAlpha *= 0.45; c.beginPath(); c.moveTo(0.5, 0); c.lineTo(-0.35, 0.32); c.lineTo(-0.15, 0); c.lineTo(-0.35, -0.32); c.closePath(); c.fill(); c.globalAlpha /= 0.45;
+      c.beginPath(); c.moveTo(0.5, 0); c.lineTo(-0.35, 0.32); c.lineTo(-0.15, 0); c.lineTo(-0.35, -0.32); c.closePath(); c.stroke();
+    },
+    // 29 ION: converging lance beams
+    (c) => {
+      for (const y of [-0.32, 0, 0.32]) { c.beginPath(); c.moveTo(-0.85, y); c.lineTo(0.68, y * 0.25); c.stroke(); }
+      c.beginPath(); c.arc(0.78, 0, 0.17, 0, TAU); c.fill();
+    },
+    // 30 COR: acid nozzle spraying droplets
+    (c) => {
+      c.beginPath(); c.moveTo(-0.85, 0); c.lineTo(-0.3, -0.45); c.lineTo(-0.3, 0.45); c.closePath(); c.globalAlpha *= 0.4; c.fill(); c.globalAlpha /= 0.4; c.stroke();
+      for (const [x, y] of [[0.25, -0.32], [0.58, 0.05], [0.2, 0.42]]) { c.beginPath(); c.arc(x, y, 0.15, 0, TAU); c.fill(); }
+    },
+    // 31 JAM: jamming pulse (rings + blocked slash)
+    (c) => {
+      for (const r of [0.35, 0.65, 0.92]) { c.globalAlpha *= 0.6; c.beginPath(); c.arc(0, 0, r, 0, TAU); c.stroke(); c.globalAlpha /= 0.6; }
+      c.lineWidth *= 1.7; c.beginPath(); c.moveTo(-0.68, -0.68); c.lineTo(0.68, 0.68); c.stroke();
     }
   ];
 
@@ -225,11 +246,16 @@
   H.upgradeCard = (ctx, c, info, t) => {
     const col = MODCOL[info.mod] || '#5fd0ff', { x, y, w, h } = c, pad = Math.max(6, h * 0.1);
     ctx.save();
+    if (info.branch) {   // specialisation choice: a slow golden pulse frames the card as something rarer
+      const p = 0.5 + 0.5 * Math.sin(t * 4);
+      A.glow(ctx, x + w / 2, y + h / 2, Math.max(w, h) * 0.62, A.rgba('#ffd34d', 0.4), 0.3 + 0.3 * p);
+    }
     const g = ctx.createLinearGradient(x, y, x, y + h); g.addColorStop(0, 'rgba(34,44,60,0.78)'); g.addColorStop(1, 'rgba(10,14,22,0.8)');
     ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
     ctx.fillStyle = A.rgba(col, 0.1); ctx.fillRect(x, y, w, h);
     ctx.fillStyle = col; ctx.fillRect(x, y, 4, h);                                   // accent bar
     ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.fillRect(x + 4, y, w - 4, 1);       // lit top edge
+    if (info.branch) { const p = 0.5 + 0.5 * Math.sin(t * 4); ctx.strokeStyle = A.rgba('#ffd34d', 0.55 + 0.3 * p); ctx.lineWidth = 1.5; ctx.strokeRect(x + 0.75, y + 0.75, w - 1.5, h - 1.5); }
     ctx.strokeStyle = 'rgba(150,180,210,0.25)'; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
     const isz = Math.min(h - pad * 2, w * 0.28), ix = x + 4 + pad + isz / 2, iy = y + h / 2;
     ctx.beginPath(); ctx.arc(ix, iy, isz / 2 + 2, 0, TAU); ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill();
