@@ -57,11 +57,38 @@ const BR = [
   [['Vampiric Link', 'heals 100%, overheal becomes shield'], ['Entangling Link', 'slows the target, +25% range']],
   [['Missile Battery', 'turret fires homing missiles from afar'], ['Tesla Tower', 'turret chains lightning through 3 foes']],
   [['Echo Burst', 'stunning blast where you vanished'], ['Deep Rewind', 'go back 7 s, recover more hull']],
-  null, null, null, null, null,   // 23-27 CAP, FLK, STS, SEN, SAL: no specialisation yet
+  [['Overcapacitor', '+70% shield burst'], ['Resonance Capacitor', 'refunds double the cooldown to your other skills']],
+  [['Wide Barrage', '+6 pellets, bigger ring'], ['Focused Flak', 'pellets home on the nearest foes, fewer but harder']],
+  [['Temporal Lock', 'also stalls cooldown recovery inside the field'], ['Null Field', 'enemy shots inside are destroyed instead of slowed']],
+  [['Deep Scan', '+40% engagement range'], ['Weak Point Scan', '+15% laser damage against anything you\'ve locked']],
+  [['Deep Salvage', '+25% more scrap from kills & pickups'], ['Overcharged Cells', 'scrap pickups also restore a little hull & shield']],
   [['Ambush Protocol', 'gain the ambush damage buff when the decoy ends'], ['Deep Cover', '+70% duration, +20% speed while active']],
   [['Overcharged Lance', '+55% damage, pierces farther'], ['Split Lance', 'fires 3 parallel beams, weaker each']],
   [['Virulent Strain', 'the corrosion spreads to nearby foes'], ['Acid Etch', 'armor reduction is stronger and lasts longer']],
   [['Wide Jam', 'bigger radius, longer lock'], ['Overload Jam', 'also deals burst damage and strips shields']],
+];
+// Ascension: a second specialisation tier for the 5 core stat parts, unlocked once their first branch is chosen
+// (offer id 200 + part*2 + variant); BR2[part][branch-1][variant] = [name, desc].
+const BR2 = [];
+BR2[ARM] = [
+  [['Thorned Hull', 'reflects much more damage'], ['Retribution Plating', 'the reflect also briefly stuns the attacker']],
+  [['Juggernaut', '+200 more hull, slowly self-repairs'], ['Adaptive Armor', 'damage reduction grows the lower your hull']],
+];
+BR2[LAS] = [
+  [['Lance Overcharge', 'even more damage'], ['Sustained Overcharge', 'the focus ramp keeps climbing past 3s']],
+  [['Wildfire Arc', 'arcs reach 2 more foes'], ['Focused Arc', 'arced hits lose much less damage']],
+];
+BR2[SHD] = [
+  [['Aegis Bastion', '+more shield, regens even sooner'], ['Barrier Bastion', 'periodically no-sells one big hit outright']],
+  [['Supernova Shield', 'bigger stun radius & duration on break'], ['Chain Nova', 'the break also damages nearby foes']],
+];
+BR2[ENG] = [
+  [['Fusion Drive', 'even more speed & acceleration'], ['Slipstream Drive', 'nearby allies ride your speed boost too']],
+  [['Phase Evasion', 'higher dodge chance'], ['Counter Evasion', 'a dodge grants a brief damage buff']],
+];
+BR2[REP] = [
+  [['Nano Bloom', 'bigger heal radius & amount'], ['Vital Swarm', 'also cleanses stun/slow on allies it heals']],
+  [['Phoenix Protocol', 'Last Stand recharges much sooner'], ['Second Wind', 'Last Stand also grants a burst of speed & invulnerability']],
 ];
 // Fleet ships: stranded ships you rescue, mercenaries you hire at outposts, reinforcements you summon
 const ECLS = [
@@ -89,6 +116,7 @@ const DIFF = {
   normal: { err: 0.18, react: 0.3, turn: 6, lead: 0.6, spd: 0.95, aggr: 0.5 },
   hard:   { err: 0.05, react: 0.12, turn: 12, lead: 1, spd: 1,    aggr: 0.9 },
 };
+const COOP_MUL = { easy: 0.7, normal: 1, hard: 1.4 };   // co-op mode: scales neutral/boss toughness instead of bot AI skill
 const PRIO = { easy: [], normal: [SHD, LAS, ARM, MIS, ENG, TOR, REP, RAIL, ARC, FLT, NAN, GRV, DRN, MIN, PUL, DSH, AEG, OD, CLK, SCT, SIP, TUR, CHR], hard: [LAS, SHD, RAIL, MIS, ARM, ARC, TOR, ENG, REP, FLT, OD, GRV, NAN, DRN, MIN, PUL, AEG, DSH, CLK, SCT, SIP, TUR, CHR] };
 function botPrio(diff) {   // upgrade wish-list: solid core first, a random skill taste woven in
   const core = diff === 'hard' ? [LAS, SHD, ARM, ENG, REP] : [SHD, LAS, ARM, ENG, REP];
@@ -118,9 +146,12 @@ const ZS_T0 = 90, ZS_T1 = 330, ZS_MIN = 0.65;   // score mode: the safe zone shr
 const zoneRS = t => { const f = LENF[LEN] || 1, a = ZS_T0 * f, b = ZS_T1 * f; return t < a ? R0 : Math.max(R0 * ZS_MIN, R0 - R0 * (1 - ZS_MIN) * (t - a) / (b - a)); };
 const zoneR = t => { const f = LENF[LEN] || 1, a = ZONE_T0 * f, b = ZONE_T1 * f; return t < a ? R0 : Math.max(ZONE_MIN, R0 - (R0 - ZONE_MIN) * (t - a) / (b - a)); };
 const BRN = (s, p) => (s.lv[p] >= 3 && s.br ? s.br[p] : 0);   // chosen branch of a part (0 = none, 1 = A, 2 = B)
+const BRN2 = (s, p) => (s.br[p] && s.br2 ? s.br2[p] : 0);   // chosen ascension (second tier, only possible once a branch is chosen)
 const stats = s => {   // the bare hull is slow & sluggish by design; Motor Control is what makes it fly (lv3 roughly matches the old baseline)
-  const e = eff(s, ENG), ion = BRN(s, ENG) === 1, f = (BRN(s, ARM) === 2 ? 0.92 : 1) * (s.od > 0 ? 1.3 : 1) * (s.cloak > 0 && BRN(s, CLK) === 2 ? 1.2 : 1);
-  return { acc: (340 + 130 * e) * (ion ? 1.25 : 1) * f, vmax: (160 + 60 * e) * (ion ? 1.2 : 1) * f, turn: 2 + 2.2 * e };
+  const e = eff(s, ENG), ion = BRN(s, ENG) === 1, fusion = ion && BRN2(s, ENG) === 1,   // Fusion Drive: pushes Ion Drive's bonus further
+    slip = !ion && G && G.ships && G.ships.some(o => o !== s && o.alive && teamOf(o.i) === teamOf(s.i) && BRN(o, ENG) === 1 && BRN2(o, ENG) === 2 && dist(o, s) < 260),   // Slipstream Drive: nearby allies ride the boost too
+    f = (BRN(s, ARM) === 2 ? 0.92 : 1) * (s.od > 0 ? 1.3 : 1) * (s.cloak > 0 && BRN(s, CLK) === 2 ? 1.2 : 1);
+  return { acc: (340 + 130 * e) * ((ion || slip) ? 1.25 : 1) * (fusion ? 1.15 : 1) * f, vmax: (160 + 60 * e) * ((ion || slip) ? 1.2 : 1) * (fusion ? 1.12 : 1) * f, turn: 2 + 2.2 * e };
 };
 const HN = n => n.type <= 4 || n.type >= 8;   // hostile neutral: scouts, haulers, boss, sentries, warships, raiders, dreadnought
 const cdMax = (lv, p) => [0, 0, 0, 0, 0, 6 - 0.4 * lv[MIS], 7 - 0.9 * lv[TOR], 13 - 1.6 * lv[DRN], 9.5 - 0.8 * lv[MIN], 4 - 0.5 * lv[DSH], 6.5 - 0.8 * lv[RAIL], 15 - 1.6 * lv[GRV], 8 - 0.8 * lv[PUL],
@@ -279,7 +310,8 @@ function showMenu(err) {
 }
 function showLobby() {
   if (S.mode !== 'lobby') return;
-  const L = S.lobby, link = location.origin + location.pathname + '#' + S.code, teams = L.mode === 'teams';
+  const L = S.lobby, link = location.origin + location.pathname + '#' + S.code, teams = L.mode === 'teams', coop = L.mode === 'coop';
+  const modeName = teams ? 'Teams' : coop ? 'Co-op vs. Leviathan' : 'Free for all';
   if (L.players.length > (showLobby.n || 0) && window.SFX && showLobby.n != null) SFX.play('join'); showLobby.n = L.players.length;
   const rows = L.players.map((p, i) => `<div class="row">${teams ? `<button class="tm" style="background:${TC[p.team]} !important" ${S.host ? `onclick="toggleTeam(${i})"` : 'disabled'}>${TN[p.team]}</button>` : `<span style="width:12px;height:12px;border-radius:50%;background:${PC8[i]}"></span>`}${esc(p.name)}${p.id === S.id ? ' <span class="dim">(you)</span>' : ''}
     ${S.host && p.bot ? `<button class="x" onclick="removeBot(${i})">✕</button>` : ''}</div>`).join('');
@@ -290,9 +322,9 @@ function showLobby() {
       <button class="sec" onclick="navigator.clipboard&&navigator.clipboard.writeText('${link}')">Copy invite link</button>
       <p class="dim">${L.players.length}/${MAXP} pilots${S.host && teams ? ' · tap a team badge to switch' : ''}</p><div class="plist">${rows}</div>
     </div><div class="side">
-      ${S.host ? `<div class="opts">${opt('toggleMode', 'Mode', teams ? 'Teams' : 'Free for all')}${opt('toggleCond', 'Game mode', condName(L.cond))}${opt('toggleLen', 'Length', L.cond === 'score' ? (L.len === 'quick' ? 'Quick ~4 min' : L.len === 'long' ? 'Long ~13 min' : 'Normal ~8 min') : (L.len === 'quick' ? 'Quick ~3 min' : L.len === 'long' ? 'Long ~10 min' : 'Normal ~6 min'))}${opt('cycleDiff', 'Bots', L.diff)}</div>
+      ${S.host ? `<div class="opts">${opt('toggleMode', 'Mode', modeName)}${coop ? opt('cycleDiff', 'Difficulty', L.diff) : `${opt('toggleCond', 'Game mode', condName(L.cond))}${opt('toggleLen', 'Length', L.cond === 'score' ? (L.len === 'quick' ? 'Quick ~4 min' : L.len === 'long' ? 'Long ~13 min' : 'Normal ~8 min') : (L.len === 'quick' ? 'Quick ~3 min' : L.len === 'long' ? 'Long ~10 min' : 'Normal ~6 min'))}${opt('cycleDiff', 'Bots', L.diff)}`}${opt('toggleArena', 'Start', L.arena ? 'Arena (Lv10)' : 'Standard')}</div>
       <button class="sec" onclick="addBot()" ${L.players.length >= MAXP ? 'disabled' : ''}>+ Add bot</button>
-      <button onclick="startMatch()" ${canStart ? '' : 'disabled'}>Start game</button>` : `<p class="dim">${teams ? 'Teams' : 'Free for all'} · ${condName(L.cond)} · ${L.len === 'quick' ? 'Quick' : L.len === 'long' ? 'Long' : 'Normal'} · bots ${L.diff}</p><p class="dim">Waiting for the host…</p>`}
+      <button onclick="startMatch()" ${canStart ? '' : 'disabled'}>Start game</button>` : `<p class="dim">${modeName}${coop ? '' : ' · ' + condName(L.cond) + ' · ' + (L.len === 'quick' ? 'Quick' : L.len === 'long' ? 'Long' : 'Normal')} · ${coop ? 'difficulty' : 'bots'} ${L.diff}${L.arena ? ' · Arena (Lv10)' : ''}</p><p class="dim">Waiting for the host…</p>`}
       ${sndRow()}
       ${camRow()}
       <button class="sec" onclick="leaveRoom()">Leave</button>
@@ -307,8 +339,8 @@ function bumpLifetime(won, kills, dmg, level) {
 }
 let STATS_DONE = false;
 function showOver(f) {
-  let t = 'Draw';
-  if (f >= 0) t = MODE === 'teams' ? `<span style="color:${TC[f]}">${TN[f]} TEAM</span> wins!` : `<span style="color:${PC8[f]}">${esc(PL[f] ? PL[f].name : '?')}</span> wins!`;
+  let t = MODE === 'coop' ? 'The Leviathan escapes…' : 'Draw';
+  if (f >= 0) t = MODE === 'coop' ? '<span style="color:#5ee07a">The Leviathan is destroyed</span> — victory!' : MODE === 'teams' ? `<span style="color:${TC[f]}">${TN[f]} TEAM</span> wins!` : `<span style="color:${PC8[f]}">${esc(PL[f] ? PL[f].name : '?')}</span> wins!`;
   const mi = S.host ? (G ? G.me : -1) : (C ? C.me : -1), mine = PL[mi] ? PL[mi].fac : -2;
   if (window.SFX && f >= 0) SFX.play(f === mine ? 'win' : 'lose');
   const sc = (S.host ? G && G.score : C && C.last && C.last.score), NFo = MODE === 'teams' ? 2 : PL.length;
@@ -328,7 +360,7 @@ function createRoom() {
   const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   const code = Array.from({ length: 4 }, () => letters[Math.floor(Math.random() * letters.length)]).join('');
   S.host = true; S.mode = 'lobby';
-  S.lobby = { status: 'waiting', seed: 0, diff: 'normal', mode: 'ffa', cond: 'score', len: 'normal', players: [{ id: S.id, name: S.name, bot: false, team: 0 }] };
+  S.lobby = { status: 'waiting', seed: 0, diff: 'normal', mode: 'ffa', cond: 'score', len: 'normal', arena: false, players: [{ id: S.id, name: S.name, bot: false, team: 0 }] };
   connect(code, true); showLobby();
 }
 function joinRoom() {
@@ -382,13 +414,14 @@ function addBot() {
 function removeBot(i) { S.lobby.players.splice(i, 1); pubLobby(); showLobby(); }
 function toggleTeam(i) { const p = S.lobby.players[i]; p.team = 1 - p.team; pubLobby(); showLobby(); }
 function cycleDiff() { const L = S.lobby; L.diff = { easy: 'normal', normal: 'hard', hard: 'easy' }[L.diff]; pubLobby(); showLobby(); }
-function toggleMode() { const L = S.lobby; L.mode = L.mode === 'teams' ? 'ffa' : 'teams'; pubLobby(); showLobby(); }
+function toggleMode() { const L = S.lobby; L.mode = { teams: 'ffa', ffa: 'coop', coop: 'teams' }[L.mode] || 'ffa'; pubLobby(); showLobby(); }
 function toggleLen() { const L = S.lobby; L.len = { quick: 'normal', normal: 'long' }[L.len] || 'quick'; pubLobby(); showLobby(); }
+function toggleArena() { const L = S.lobby; L.arena = !L.arena; pubLobby(); showLobby(); }
 function toggleCond() { const L = S.lobby; L.cond = { score: 'last', last: 'capture', capture: 'score' }[L.cond] || 'score'; pubLobby(); showLobby(); }
 function startMatch() { const L = S.lobby; if (L.players.length < 2 || (L.mode === 'teams' && (!teamCount(L, 0) || !teamCount(L, 1)))) return; L.status = 'playing'; pubLobby(); startGame(L); }
 function playAgain() { clearInterval(simTimer); G = null; S.lobby.status = 'waiting'; S.mode = 'lobby'; pubLobby(); showLobby(); }
 function startGame(L) {
-  PL = L.players; MODE = L.mode || 'teams'; COND = L.cond || 'last'; LEN = L.len || 'normal'; PL.forEach((p, i) => { p.fac = MODE === 'teams' ? p.team : i; });
+  PL = L.players; MODE = L.mode || 'teams'; COND = L.cond || 'last'; LEN = L.len || 'normal'; PL.forEach((p, i) => { p.fac = MODE === 'teams' ? p.team : MODE === 'coop' ? 0 : i; });
   R = { fx: [], log: [], cam: null, spec: 0, lock: 0 }; FIRE = {}; HIT = {}; THR = {}; PB = {};
   if (ART2) { try { Art2.fx.clear(); } catch (e) {} }
   clearInterval(simTimer); clearInterval(inputTimer);
@@ -405,23 +438,25 @@ const teamOf = i => i >= 0 ? G.players[i].fac : -9;   // -1 owner = hostile to e
 const enemyOf = (s, t) => (isShip(t) ? t.alive && !(t.cloak > 0) && teamOf(t.i) !== teamOf(s.i) : isLive(t) && t.type !== 5 && t.type !== 7 && !(t.type === 6 && teamOf(t.ow) === teamOf(s.i)));
 
 function newGame(L) {
-  G = { players: L.players, diff: L.diff || 'normal', mode: MODE, cond: COND, NF: MODE === 'teams' ? 2 : L.players.length, shares: Array(MODE === 'teams' ? 2 : L.players.length).fill(1 / (MODE === 'teams' ? 2 : L.players.length)), t: 0, acc: 0, last: performance.now(), lastPub: 0, pubN: 0, over: false, winner: -1,
+  const NFn = MODE === 'teams' ? 2 : MODE === 'coop' ? 1 : L.players.length;
+  G = { players: L.players, diff: L.diff || 'normal', mode: MODE, cond: COND, NF: NFn, shares: Array(NFn).fill(1 / NFn), t: 0, acc: 0, last: performance.now(), lastPub: 0, pubN: 0, over: false, winner: -1,
     me: L.players.findIndex(p => p.id === S.id), z: R0, ships: [], neut: [], ast: [], proj: [], pick: [], mines: [], drops: [],
     evPub: [], evLoc: [], logPub: [], logLoc: [], nid: 1, spawnT: 0, dropT: ZONE_T0, boss: false, bhs: Math.random() < 0.5 ? 1 : -1, shower: 0, surge: 0, ion: null, showerT: 0,
-    score: Array(MODE === 'teams' ? 2 : L.players.length).fill(0), fields: [], haz: [], flare: 0, evQ: [], lastEv: '', rogue: 0, dread: false, harv: false };
+    score: Array(NFn).fill(0), fields: [], haz: [], flare: 0, evQ: [], lastEv: '', rogue: 0, dread: false, harv: false };
+  G.coopMul = MODE === 'coop' ? (COOP_MUL[L.diff] || 1) : 1;
   G.lenF = LENF[LEN] || 1; G.dropT = ZONE_T0 * G.lenF; G.relics = [85, 175, 265, 355, 445].map(t => ({ t: t * G.lenF })); G.cometT = 30 * G.lenF; G.sosT = 0; G.warT = 0; G.itemT = 65 * G.lenF;
-  G.evT = 38 * G.lenF; G.bossAt = 110 * G.lenF; G.dreadAt = 170 * G.lenF; G.harvAt = 260 * G.lenF; G.target = Math.round(70 * G.lenF); G.tlim = 480 * G.lenF;
+  G.evT = 38 * G.lenF; G.bossAt = (MODE === 'coop' ? 20 : 110) * G.lenF; G.dreadAt = 170 * G.lenF; G.harvAt = 260 * G.lenF; G.target = Math.round(70 * G.lenF); G.tlim = 480 * G.lenF;
   const np = L.players.length, cnt = [0, 0], tot = [teamCount(L, 0), teamCount(L, 1)];
   L.players.forEach((p, i) => {
     const t = p.team, k = cnt[t]++, side = t ? 1 : -1, ra = i / np * Math.PI * 2;
     const sx = MODE === 'teams' ? side * R0 * 0.72 : Math.cos(ra) * R0 * 0.75, sy = MODE === 'teams' ? (k - (tot[t] - 1) / 2) * 280 : Math.sin(ra) * R0 * 0.75, sa = MODE === 'teams' ? (t ? Math.PI : 0) : ra + Math.PI;
-    const s = { i, x: sx, y: sy, sx, sy, sa, vx: 0, vy: 0, ang: sa, respT: 0, inv: 0, slow: 0, hp: 900, hpMax: 900, sh: 0, shMax: 0, rad: 15,
-      lv: Array(NP).fill(0), dp: Array(NP).fill(0), ph: Array(NP).fill(0), br: Array(NP).fill(0), sk: [-1, -1, -1], item: [-1, -1], cd: Array(NP).fill(0), scrap: 0, level: 0, pending: 1, offers: [],
+    const s = { i, x: sx, y: sy, sx, sy, sa, vx: 0, vy: 0, ang: sa, respT: 0, inv: 0, slow: 0, hp: 900, hpMax: 900, sh: 0, shMax: 0, rad: 15, cdLock: 0,
+      lv: Array(NP).fill(0), dp: Array(NP).fill(0), ph: Array(NP).fill(0), br: Array(NP).fill(0), br2: Array(NP).fill(0), sk: [-1, -1, -1], item: [-1, -1], cd: Array(NP).fill(0), scrap: 0, level: 0, pending: 1, offers: [],
       cloak: 0, od: 0, aegis: 0, amb: 0, streak: 0, lsT: 0, novaT: 0,
       alive: true, emp: 0, boost: 0, thr: 0, fireT: 0, repT: 0, portalT: 0, lastHit: -9, kills: 0, inT: 0,
       in: { mx: 0, my: 0, tg: '', s0: 0, s1: 0, s2: 0, i0: 0, i1: 0, sa: [0, 0, 0] }, tgtNow: null,
       ai: { t: 0, mode: 'roam', tgt: null, goal: null, err: 0, strafe: 1, strT: 0, seed: Math.floor(Math.random() * 3) } };
-    makeOffers(s); G.ships.push(s);
+    makeOffers(s); if (L.arena) autoLevelUp(s, 10); G.ships.push(s);
   });
   const LN = ['Classic', 'Asteroid Ring', 'Twin Suns', 'Wormhole Nexus', 'Derelict Graveyard'], mp = new URLSearchParams(location.search).get('map');
   G.layout = mp != null && LN[+mp] ? +mp : Math.floor(Math.random() * 5);
@@ -462,7 +497,7 @@ function newGame(L) {
   else { sl(-0.5, 0.55, -0.15, 0.1, 0.35, -0.3, 120, 0.7); sl(-0.75, -0.6, -0.35, -0.75, 0.05, -0.6, 110, 0.5); }   // one lane sweeps toward the graveyard's mouth
   G.streams = G.streams.map(buildStream);
   G.pads = [[-0.55, -0.2], [0.55, 0.2]].map(([x, y]) => ({ x: x * R0, y: y * R0, r: 110 }));   // repair relays: heal any ship inside
-  G.bea = (G.cond !== 'last' ? [[0, 0], [0, -0.58], [0, 0.58]] : []).map(([x, y]) => ({ x: x * R0, y: y * R0, r: 170, p: 0, owner: -1, cap: -1, cont: 0 }));
+  G.bea = (MODE !== 'coop' && G.cond !== 'last' ? [[0, 0], [0, -0.58], [0, 0.58]] : []).map(([x, y]) => ({ x: x * R0, y: y * R0, r: 170, p: 0, owner: -1, cap: -1, cont: 0 }));
   for (let i = 0; i < (G.layout === 1 ? 22 : 52); i++) spawnAst(220);
   for (let i = 0; i < 12; i++) bigRock();
   for (let i = 0; i < 20; i++) spawnNeut(0, 260);
@@ -510,7 +545,8 @@ function ringAst() {
 function spawnAst(minD) { const p = freeSpot(minD, 0.92); if (!p) return; const r = rnd(16, 40); G.ast.push({ id: G.nid++, x: p.x, y: p.y, r, hp: r * 2.2, hpMax: r * 2.2 }); }
 function spawnNeut(type, minD, cls) {   // 0 scout, 1 hauler, 2 leviathan, 3 sentry, 4 warship, 5 stranded ship, 6 escort, 7 hire outpost, 8 raider, 9 dreadnought, 10 harvester
   const p = type === 2 ? { x: 0, y: -0.25 * G.z } : freeSpot(minD, type === 7 ? 0.6 : 0.85); if (!p) return null;
-  const hp = [30, 140, 1400, 320, 700, 150, 220, 1e9, 90, 3400, 5200][type], rad = [13, 26, 70, 22, 36, 18, 18, 34, 13, 90, 100][type];
+  const hpBase = [30, 140, 1400, 320, 700, 150, 220, 1e9, 90, 3400, 5200][type], rad = [13, 26, 70, 22, 36, 18, 18, 34, 13, 90, 100][type];
+  const hp = MODE === 'coop' && HN({ type }) ? Math.round(hpBase * G.coopMul) : hpBase;   // co-op difficulty scales hostile neutrals (esp. the Leviathan)
   if (type === 5) { cls = cls != null ? cls : [0, 0, 1, 2, 3, 4][Math.floor(Math.random() * 6)]; }
   const n = { id: G.nid++, type, cls: cls || 0, x: p.x, y: p.y, vx: 0, vy: 0, ang: rnd(0, 6.28), hp, hpMax: hp, gx: p.x, gy: p.y, shT: rnd(0, 1), rad, by: -1, ow: -1, res: 0 };
   if ((type === 0 || type === 1 || type === 8) && G.t > 80 * G.lenF && Math.random() < 0.05) { n.conv = 1; n.hp = n.hpMax = Math.round(hp * 3); n.rad = Math.round(rad * 1.3); }   // elite: tougher, bigger, guaranteed item drop (reuses the unused `conv` flag for these types)
@@ -534,7 +570,11 @@ function makeOffers(s) {
   const free = s.sk.includes(-1);
   const pool = [...Array(NP).keys()].filter(p => p !== RAIL && s.lv[p] < 3 && (!PARTS[p][3] || s.lv[p] > 0 || free)).sort(() => Math.random() - 0.5);
   const ready = [...Array(NP).keys()].filter(p => BR[p] && s.lv[p] >= 3 && !s.br[p]);
-  if (ready.length && Math.random() < 0.75) {   // a maxed part may specialise: both branches are offered side by side
+  const readyAsc = [...Array(NP).keys()].filter(p => BR2[p] && s.br[p] && !s.br2[p]);
+  if (readyAsc.length && Math.random() < 0.75) {   // a branched core part may ascend further: both ascension options offered side by side
+    const p = readyAsc[Math.floor(Math.random() * readyAsc.length)];
+    s.offers = [200 + p * 2, 200 + p * 2 + 1, ...pool.slice(0, 1)];
+  } else if (ready.length && Math.random() < 0.75) {   // a maxed part may specialise: both branches are offered side by side
     const p = ready[Math.floor(Math.random() * ready.length)];
     s.offers = [100 + p * 2, 100 + p * 2 + 1, ...pool.slice(0, 1)];
   } else s.offers = pool.slice(0, 3);
@@ -542,6 +582,13 @@ function makeOffers(s) {
 function choose(s, k) {
   if (!s.alive || s.pending <= 0 || s.offers[k] == null) return;
   const p = s.offers[k];
+  if (p >= 200) {   // ascension card (second branch tier)
+    const q = (p - 200) >> 1, v = ((p - 200) & 1) + 1;
+    if (!BR2[q] || !s.br[q] || s.br2[q]) return;
+    s.br2[q] = v; s.pending--;
+    if (q === ARM && s.br[q] === 2 && v === 1) { s.hpMax += 200; s.hp += 200; }   // Juggernaut
+    ev('w', s.x, s.y); s.hp = Math.min(s.hpMax, s.hp + 30); makeOffers(s); return;
+  }
   if (p >= 100) {   // branch card
     const q = (p - 100) >> 1, v = ((p - 100) & 1) + 1;
     if (!BR[q] || s.lv[q] < 3 || s.br[q]) return;
@@ -561,8 +608,18 @@ function skip(s) {   // don't like any offer: drop back one level, keeping half 
   s.scrap = thresh(s.level) + 0.5 * (thresh(s.level + 1) - thresh(s.level));
   ev('w', s.x, s.y); makeOffers(s);
 }
+function autoLevelUp(s, toLevel) {   // Arena mode: instantly resolve a ship up to a target level using the same pick heuristic bots use
+  s.pending += toLevel - s.level; s.level = toLevel; s.scrap = thresh(toLevel);
+  while (s.pending > 0 && s.offers.length) {
+    let k = Math.floor(Math.random() * s.offers.length);
+    const bi = s.offers.findIndex(o => o >= 100);
+    if (bi >= 0) k = bi + (Math.random() < 0.5 ? 0 : 1) % s.offers.filter(o => o >= 100).length;
+    else { const idx = (s.ai.pr || (s.ai.pr = botPrio(G.diff))).map(p => s.offers.indexOf(p)).filter(i => i >= 0)[0]; k = idx != null ? idx : 0; }
+    choose(s, k);
+  }
+}
 function addScrap(s, n) {
-  s.scrap += n * (1 + 0.15 * eff(s, SAL));
+  s.scrap += n * (1 + 0.15 * eff(s, SAL) * (BRN(s, SAL) === 1 ? 2 : 1));   // Deep Salvage: scrap multiplier doubled
   while (s.level < MAXLV && s.scrap >= thresh(s.level + 1)) { s.level++; s.pending++; ev('L', s.x, s.y, s.i); }
   if (s.pending > 0 && !s.offers.length) makeOffers(s);
 }
@@ -571,26 +628,43 @@ function credit(by, s, amt) {   // post-match scoreboard: track hull/shield dama
 }
 function hurt(s, dmg, by, x, y) {
   if (!s.alive || G.over || s.inv > 0 || s.phase > 0) return;
-  if (BRN(s, ENG) === 2 && Math.random() < 0.12) { ev('s', x, y, 0); return; }   // Evasion Matrix
+  if (BRN(s, ENG) === 2 && Math.random() < (BRN2(s, ENG) === 1 ? 0.2 : 0.12)) {   // Evasion Matrix; Phase Evasion raises the odds
+    ev('s', x, y, 0); if (BRN2(s, ENG) === 2) s.amb = Math.max(s.amb, 3);   // Counter Evasion: a brief damage buff on a successful dodge
+    return;
+  }
   s.lastHit = G.t; s.cloak = 0;
   dmg *= (s.emp > 0 ? 1.35 : 1) * (s.slow > 0 ? 1.15 : 1);   // combo window: stunned +35%, slowed +15%
   if (s.aegis > 0) dmg *= 0.6;
   if (s.od > 0 && BRN(s, OD) === 1) dmg *= 1.15;
+  if (BRN(s, SHD) === 1 && BRN2(s, SHD) === 2 && dmg > 60 && G.t >= (s.barrierT || 0)) { s.barrierT = G.t + 14; dmg *= 0.12; ev('w', s.x, s.y); }   // Barrier Bastion: no-sells one big hit
   if (s.sh > 0) {
     const a = Math.min(s.sh, dmg); s.sh -= a; dmg -= a; ev('s', x, y, Math.round(a)); credit(by, s, Math.round(a));
     if (s.sh <= 0 && BRN(s, SHD) === 2 && G.t >= s.novaT) {   // Nova Shield: the broken shield bursts and stuns what is near
-      s.novaT = G.t + 12; ev('k', s.x, s.y, 190);
-      for (const o of G.ships) if (o.alive && teamOf(o.i) !== teamOf(s.i) && dist(o, s) < 190 + o.rad) { o.emp = Math.max(o.emp, 0.7 * CCMUL); const d = dist(o, s) || 1; o.vx += (o.x - s.x) / d * 300; o.vy += (o.y - s.y) / d * 300; }
+      const b2 = BRN2(s, SHD), nr = b2 === 1 ? 260 : 190;   // Supernova Shield: bigger radius & duration
+      s.novaT = G.t + (b2 === 1 ? 16 : 12); ev('k', s.x, s.y, nr);
+      for (const o of G.ships) if (o.alive && teamOf(o.i) !== teamOf(s.i) && dist(o, s) < nr + o.rad) {
+        o.emp = Math.max(o.emp, (b2 === 1 ? 1.1 : 0.7) * CCMUL); const d = dist(o, s) || 1; o.vx += (o.x - s.x) / d * 300; o.vy += (o.y - s.y) / d * 300;
+        if (b2 === 2) hurt(o, 35 + 8 * eff(s, SHD), s.i, o.x, o.y);   // Chain Nova: the break also damages nearby foes
+      }
     }
     if (dmg <= 0) return;
   }
   dmg *= 1 - 0.07 * Math.max(0, eff(s, ARM) - (s.corrArm || 0));   // Corrosive Spray etches away effective armor
+  if (BRN(s, ARM) === 2 && BRN2(s, ARM) === 2) dmg *= 1 - (0.1 + 0.3 * (1 - s.hp / s.hpMax));   // Adaptive Armor: more reduction the lower your hull
   if (BRN(s, ARM) === 1 && by >= 0 && by !== s.i) {   // Reactive Plating
-    const o = G.ships[by]; if (o && o.alive && teamOf(o.i) !== teamOf(s.i)) { o.hp -= dmg * 0.15; if (o.hp <= 0) killShip(o, s.i); }
+    const o = G.ships[by]; if (o && o.alive && teamOf(o.i) !== teamOf(s.i)) {
+      const a2 = BRN2(s, ARM), refl = dmg * (a2 === 1 ? 0.26 : 0.15);   // Thorned Hull: much stronger reflect
+      o.hp -= refl; if (a2 === 2) o.emp = Math.max(o.emp, 0.6 * CCMUL);   // Retribution Plating: also stuns the attacker
+      if (o.hp <= 0) killShip(o, s.i);
+    }
   }
   s.hp -= dmg; ev('h', x, y, Math.round(dmg)); credit(by, s, Math.round(dmg));
   if (s.hp <= 0) {
-    if (BRN(s, REP) === 2 && G.t >= s.lsT) { s.lsT = G.t + 60; s.hp = s.hpMax * 0.35; s.inv = 2.5; ev('w', s.x, s.y); logMsg(G.players[s.i].name + ' survived with Last Stand!'); return; }
+    if (BRN(s, REP) === 2 && G.t >= s.lsT) {
+      const b2 = BRN2(s, REP); s.lsT = G.t + (b2 === 1 ? 35 : 60);   // Phoenix Protocol: much shorter cooldown
+      s.hp = s.hpMax * 0.35; s.inv = b2 === 2 ? 3.5 : 2.5; if (b2 === 2) s.boost = Math.max(s.boost, 2.5);   // Second Wind: longer invulnerability + a speed burst
+      ev('w', s.x, s.y); logMsg(G.players[s.i].name + ' survived with Last Stand!'); return;
+    }
     killShip(s, by);
   }
 }
@@ -652,7 +726,7 @@ function hurtNeut(n, dmg, x, y, by) {
     for (let i = 0; i < 3; i++) G.pick.push({ id: G.nid++, t: 1, x: n.x + rnd(-40, 40), y: n.y + rnd(-40, 40), v: 0, vx: 0, vy: 0, life: 60 });
     if (n.type === 10) { G.harv = false; G.harvAt = G.cond === 'last' ? 1e9 : G.t + 220 * G.lenF; }
     else if (n.type === 9) { G.dread = false; G.dreadAt = G.cond === 'last' ? 1e9 : G.t + 150 * G.lenF; }
-    else { G.boss = false; G.bossAt = G.cond === 'last' ? 1e9 : G.t + 140 * G.lenF; }
+    else { G.boss = false; G.bossAt = (G.cond === 'last' || MODE === 'coop') ? 1e9 : G.t + 140 * G.lenF; if (MODE === 'coop') G.coopWin = true; }
     if (k && k.alive) { k.pending += ups; makeOffers(k); k.hp = k.hpMax; addScore(kf, pts); logMsg(`${G.players[k.i].name} slew the ${nm} and claimed a relic (+${ups} upgrades${G.cond === 'score' ? ', +' + pts + ' pts' : ''})!`); }
     else logMsg(`The ${nm} was destroyed`);
   } else {
@@ -740,7 +814,7 @@ function leadAng(s, t, sp) {   // aim at where a moving target will be when a sh
 function updateShip(s, dt) {
   const st = stats(s), I = s.in, L = k => eff(s, k);
   const inNeb = G.nebs.some(n => Math.hypot(s.x - n.x, s.y - n.y) < n.r), inIon = G.ion && Math.hypot(s.x - G.ion.x, s.y - G.ion.y) < G.ion.r;
-  s.emp = Math.max(0, s.emp - dt); s.slow = Math.max(0, (s.slow || 0) - dt); s.boost = Math.max(0, s.boost - dt);
+  s.emp = Math.max(0, s.emp - dt); s.slow = Math.max(0, (s.slow || 0) - dt); s.boost = Math.max(0, s.boost - dt); s.cdLock = Math.max(0, (s.cdLock || 0) - dt);
   s.phase = Math.max(0, (s.phase || 0) - dt); s.od = Math.max(0, s.od - dt); s.aegis = Math.max(0, s.aegis - dt); s.amb = Math.max(0, s.amb - dt);
   if (s.cloak > 0) { s.cloak -= dt; if (s.cloak <= 0) { s.cloak = 0; if (BRN(s, CLK) === 1) s.amb = 4; ev('w', s.x, s.y); } }
   if (s.decoyT > 0 && (s.decoyT -= dt) <= 0) { s.decoyT = 0; s.decoySpd = 0; if (s.decoyAmb) { s.amb = Math.max(s.amb, 4); s.decoyAmb = false; } }   // Decoy Beacon expiring
@@ -757,17 +831,20 @@ function updateShip(s, dt) {
     if (!o.alive || teamOf(o.i) === teamOf(s.i) || s.ram.has(o.i)) continue;
     if (Math.hypot(o.x - s.x, o.y - s.y) < s.rad + o.rad + 8) { s.ram.add(o.i); hurt(o, (36 + 15 * (s.dashLv || 1)) * (s.dashA ? 2.2 : 1), s.i, o.x, o.y); o.emp = Math.max(o.emp, 0.5 * CCMUL); const d = dist(o, s) || 1; o.vx += (o.x - s.x) / d * (s.dashA ? 700 : 350); o.vy += (o.y - s.y) / d * (s.dashA ? 700 : 350); ev('x', (o.x + s.x) / 2, (o.y + s.y) / 2, 40); }
   } s.portalT -= dt; s.fireT -= dt;
-  const cdk = s.od > 0 && BRN(s, OD) === 2 ? 2 : 1;
+  const cdk = (s.od > 0 && BRN(s, OD) === 2 ? 2 : 1) * (s.cdLock > 0 ? 0.25 : 1);
   for (let p = 0; p < NP; p++) s.cd[p] = Math.max(0, s.cd[p] - dt * cdk);
-  s.shMax = 45 * L(SHD) * (BRN(s, SHD) === 1 ? 1.6 : 1);
+  const aeb = BRN(s, SHD) === 1 && BRN2(s, SHD) === 1;   // Aegis Bastion: even more shield, regen kicks in sooner still
+  s.shMax = 45 * L(SHD) * (BRN(s, SHD) === 1 ? 1.6 : 1) * (aeb ? 1.25 : 1);
   if (s.sh > s.shMax) s.sh = s.shMax;
-  if (s.sh < s.shMax && G.t - s.lastHit > (BRN(s, SHD) === 1 ? 1.5 : 3) && !inNeb && !inIon) s.sh = Math.min(s.shMax, s.sh + (8 + 6 * L(SHD)) * dt);
-  const rp = L(REP);
+  if (s.sh < s.shMax && G.t - s.lastHit > (BRN(s, SHD) === 1 ? (aeb ? 0.8 : 1.5) : 3) && !inNeb && !inIon) s.sh = Math.min(s.shMax, s.sh + (8 + 6 * L(SHD)) * dt);
+  if (BRN(s, ARM) === 2 && BRN2(s, ARM) === 1 && s.hp < s.hpMax) s.hp = Math.min(s.hpMax, s.hp + 2 * dt);   // Juggernaut: slowly self-repairs
+  const rp = L(REP), nsAsc = BRN(s, REP) === 1 ? BRN2(s, REP) : 0;   // Nano Bloom (1) / Vital Swarm (2)
   if (rp && G.t - s.lastHit > 3) {
     s.hp = Math.min(s.hpMax, s.hp + (1 + rp) * dt);
     if (BRN(s, REP) === 1) {   // Nano Swarm: heal allies and their escorts nearby
-      for (const o of G.ships) if (o !== s && o.alive && teamOf(o.i) === teamOf(s.i) && dist(o, s) < 260) o.hp = Math.min(o.hpMax, o.hp + 4 * dt);
-      for (const n of G.neut) if (n.type === 6 && !n.dead && G.ships[n.ow] && teamOf(n.ow) === teamOf(s.i) && dist(n, s) < 260) n.hp = Math.min(n.hpMax, n.hp + 4 * dt);
+      const nr = nsAsc === 1 ? 340 : 260, nh = nsAsc === 1 ? 7 : 4;
+      for (const o of G.ships) if (o !== s && o.alive && teamOf(o.i) === teamOf(s.i) && dist(o, s) < nr) { o.hp = Math.min(o.hpMax, o.hp + nh * dt); if (nsAsc === 2) { o.emp = 0; o.slow = 0; } }
+      for (const n of G.neut) if (n.type === 6 && !n.dead && G.ships[n.ow] && teamOf(n.ow) === teamOf(s.i) && dist(n, s) < nr) n.hp = Math.min(n.hpMax, n.hp + nh * dt);
     }
     if ((s.repT -= dt) <= 0) { s.repT = 12 - 3 * rp; const d = [...Array(NP).keys()].find(p => s.dp[p]); if (d != null) { s.dp[d] = 0; s.ph[d] = 30 + 20 * s.lv[d]; } }
   }
@@ -812,7 +889,7 @@ function updateShip(s, dt) {
   if (L(CHR) && G.t - (s.hT || 0) >= 0.25) { s.hT = G.t; (s.hist || (s.hist = [])).push({ x: s.x, y: s.y, hp: s.hp, t: G.t }); if (s.hist.length > 30) s.hist.shift(); }   // Chrono Shift: a position/hull sample every 0.25 s
   if (s.sip) siphonTick(s, dt);
   // target resolution + auto-fire lasers
-  const lr = LASER_RANGE * sensMul(eff(s, SEN));
+  const lr = LASER_RANGE * sensMul(eff(s, SEN)) * (BRN(s, SEN) === 1 ? 1.4 : 1);   // Deep Scan: much longer engagement range
   let t = tgtObj(I.tg);
   if (!t || !enemyOf(s, t) || dist(s, t) > 720) t = null;
   if (!t) t = nearest(enemyShips(s), s, lr) || nearest(G.neut.filter(n => !n.dead && (HN(n) || (n.type === 6 && teamOf(n.ow) !== teamOf(s.i)))), s, 560) || nearest(G.ast.filter(a => !a.big), s, 330);
@@ -827,14 +904,16 @@ function updateShip(s, dt) {
   if (!t) { s.fT = 0; s.fTg = null; }
   if (t && s.fireT <= 0 && dist(s, t) < lr + (t.rad || t.r || 0)) {
     const l = L(LAS), n = 1 + (l >= 2 ? 1 : 0) + (l >= 3 ? 1 : 0); s.fireT = 0.1;
+    const lb = BRN(s, LAS), sustained = lb === 1 && BRN2(s, LAS) === 2, fCap = sustained ? 5 : 3;   // Sustained Overcharge: the ramp keeps climbing past 3s
     if (s.fTg !== t) { s.fTg = t; s.fT = 0; }   // focus: staying on one target ramps the beam up to +80% over 3 s
-    s.fT = Math.min(3, (s.fT || 0) + s.bAcc);
-    const lb = BRN(s, LAS), dm = (lb === 1 ? 1.2 : 1) * (s.od > 0 ? (BRN(s, OD) === 1 ? 1.75 : 1.35) : 1) * (s.amb > 0 ? 1.4 : 1);
-    const dmgTick = LDPS[l] * Math.max(0.05, s.bAcc) * (1 + (lb === 1 ? 1.1 : 0.8) * s.fT / 3) * dm;
+    s.fT = Math.min(fCap, (s.fT || 0) + s.bAcc);
+    const dm = (lb === 1 ? 1.2 : 1) * (lb === 1 && BRN2(s, LAS) === 1 ? 1.25 : 1) * (s.od > 0 ? (BRN(s, OD) === 1 ? 1.75 : 1.35) : 1) * (s.amb > 0 ? 1.4 : 1) * (BRN(s, SEN) === 2 ? 1.15 : 1);   // Lance Overcharge / Weak Point Scan
+    const dmgTick = LDPS[l] * Math.max(0.05, s.bAcc) * (1 + (lb === 1 ? 1.1 : 0.8) * s.fT / fCap) * dm;
     fireBeam(s, t, dmgTick, s.i, s.i); s.bAcc = 0;
     if (l >= 2) {   // arc to a second enemy near the target (Chain Arc: up to 3 more)
-      const arcs = enemyShips(s).filter(o => o !== t && dist(o, t) < 170 + 30 * l).sort((a, b) => dist(a, t) - dist(b, t)).slice(0, lb === 2 ? 3 : 1);
-      for (const t2 of arcs) hurt(t2, dmgTick * (lb === 2 ? 0.6 : 0.5), s.i, t2.x, t2.y);
+      const wild = lb === 2 && BRN2(s, LAS) === 1, focus = lb === 2 && BRN2(s, LAS) === 2;   // Wildfire Arc: +2 more targets; Focused Arc: less falloff
+      const arcs = enemyShips(s).filter(o => o !== t && dist(o, t) < 170 + 30 * l).sort((a, b) => dist(a, t) - dist(b, t)).slice(0, lb === 2 ? (wild ? 5 : 3) : 1);
+      for (const t2 of arcs) hurt(t2, dmgTick * (lb === 2 ? (focus ? 0.85 : 0.6) : 0.5), s.i, t2.x, t2.y);
     }
     if ((s.fN = (s.fN || 0) + 1) % 3 === 0) ev('f', s.x, s.y, s.i);
   }
@@ -913,19 +992,26 @@ function updateShip(s, dt) {
       }
     }
     else if (p === CAP) {   // Capacitor: emergency shield burst that also dumps charge into the other 2 skills' cooldowns
-      s.sh = Math.min(s.shMax, s.sh + 45 + 15 * lv);
-      for (let k = 0; k < 3; k++) { const q = s.sk[k]; if (q >= 0 && q !== CAP) s.cd[q] = Math.max(0, s.cd[q] - (6 + 2 * lv)); }
+      s.sh = Math.min(s.shMax, s.sh + (45 + 15 * lv) * (bp === 1 ? 1.7 : 1));   // Overcapacitor: much bigger burst
+      const cdr = (6 + 2 * lv) * (bp === 2 ? 2 : 1);   // Resonance Capacitor: double cooldown refund
+      for (let k = 0; k < 3; k++) { const q = s.sk[k]; if (q >= 0 && q !== CAP) s.cd[q] = Math.max(0, s.cd[q] - cdr); }
       ev('w', s.x, s.y, 0, CAP);
     }
     else if (p === FLK) {   // Flak Ring: long-range ring of pellets in every direction, like a Leviathan strike
-      const nP = 12 + 4 * lv, dP = 10 + 3 * lv, a0 = rnd(0, 6.28);
-      for (let k = 0; k < nP; k++) spawnProj(1, s.i, s.x, s.y, a0 + k / nP * 6.283, rnd(560, 680), rnd(1.8, 2.2), dP, { kb: 120 });
+      const nP = (bp === 2 ? 6 : 12) + 4 * lv, dP = (10 + 3 * lv) * (bp === 2 ? 1.8 : 1), a0 = rnd(0, 6.28);
+      for (let k = 0; k < nP; k++) spawnProj(1, s.i, s.x, s.y, a0 + k / nP * 6.283, rnd(560, 680), rnd(1.8, 2.2), dP, bp === 2 ? { kb: 120, turn: 3.5 } : { kb: 120 });   // Focused Flak: fewer, stronger, homes on the nearest foes
       ev('k', s.x, s.y, 150, FLK);
     }
     else if (p === STS) {   // Stasis Field: foes and enemy shots near you crawl
       const sr = 300 + 30 * lv; ev('k', s.x, s.y, sr, STS);
-      for (const o of G.ships) if (o.alive && teamOf(o.i) !== teamOf(s.i) && dist(o, s) < sr + o.rad) { o.slow = Math.max(o.slow || 0, (3 + 0.5 * lv) * CCMUL); o.emp = Math.max(o.emp, 0.4 * CCMUL); o.vx *= 0.3; o.vy *= 0.3; }
-      for (const q of G.proj) if (q.o !== s.i && (q.o < 0 || teamOf(q.o) !== teamOf(s.i)) && dist(q, s) < sr) { q.vx *= 0.35; q.vy *= 0.35; }
+      for (const o of G.ships) if (o.alive && teamOf(o.i) !== teamOf(s.i) && dist(o, s) < sr + o.rad) {
+        o.slow = Math.max(o.slow || 0, (3 + 0.5 * lv) * CCMUL); o.emp = Math.max(o.emp, 0.4 * CCMUL); o.vx *= 0.3; o.vy *= 0.3;
+        if (bp === 1) o.cdLock = Math.max(o.cdLock || 0, (3 + 0.5 * lv) * CCMUL);   // Temporal Lock: also stalls cooldown recovery
+      }
+      for (let k = G.proj.length - 1; k >= 0; k--) {
+        const q = G.proj[k]; if (q.o === s.i || (q.o >= 0 && teamOf(q.o) === teamOf(s.i)) || dist(q, s) >= sr) continue;
+        if (bp === 2) G.proj.splice(k, 1); else { q.vx *= 0.35; q.vy *= 0.35; }   // Null Field: destroys shots instead of just slowing them
+      }
     }
     else if (p === FLT) {   // 1/3/4 gunships by level, each twice as strong as a normal one; Heavy Cruiser swaps that for one very tough frigate
       const cnt = lv + (lv >= 2 ? 1 : 0);
@@ -1237,7 +1323,7 @@ function solarFlare() {
   logMsg(hit ? `☀ The solar flare scorched ${hit} ship${hit > 1 ? 's' : ''}!` : '☀ Everyone found cover from the solar flare');
 }
 function stepOnce(dt) {
-  G.t += dt; STT = G.t; G.z = G.cond === 'last' ? zoneR(G.t) : G.cond === 'score' ? zoneRS(G.t) : R0;
+  G.t += dt; STT = G.t; G.z = MODE === 'coop' ? R0 : G.cond === 'last' ? zoneR(G.t) : G.cond === 'score' ? zoneRS(G.t) : R0;
   if (G.bh) { G.bh.x = G.bhs * Math.sin(G.t * 0.04) * R0 * 0.25; G.bh.y = Math.cos(G.t * 0.06) * R0 * 0.3; }
   for (const w of G.wells) if (w.life != null && w.o != null && w.g > 0) for (const sh of G.ships) if (sh.alive && teamOf(sh.i) !== teamOf(w.o) && Math.hypot(sh.x - w.x, sh.y - w.y) < w.gr * 0.55) sh.slow = Math.max(sh.slow || 0, 0.4 * CCMUL);
   for (const w of G.wells) if (w.vx != null) { w.x += w.vx * dt; w.y += w.vy * dt; if (Math.hypot(w.x, w.y) < R0 * 1.1) w.in = 1; }
@@ -1247,7 +1333,7 @@ function stepOnce(dt) {
     if (G.portals.some(p => p.life <= 0)) { for (const p of G.portals) if (p.life != null && p.life <= 0) ev('w', p.x, p.y); G.portals = G.portals.filter(p => p.life == null || p.life > 0); logMsg('🌌 The unstable wormholes collapsed'); }
   }
   for (const s of G.ships) {
-    if (!s.alive) { if (G.cond !== 'last' && (s.respT -= dt) <= 0) respawn(s); continue; }
+    if (!s.alive) { if ((G.cond !== 'last' || MODE === 'coop') && (s.respT -= dt) <= 0) respawn(s); continue; }
     s.inv = Math.max(0, s.inv - dt);
     if (G.players[s.i].bot) botControl(s, dt); else if (G.t - s.inT > 1.5) { s.in.s0 = s.in.s1 = s.in.s2 = 0; }
     updateShip(s, dt);
@@ -1298,7 +1384,7 @@ function stepOnce(dt) {
       if (d < 130) { c.x += (s.x - c.x) / d * 380 * dt; c.y += (s.y - c.y) / d * 380 * dt; }
       if (d < s.rad + 12) {
         taken = true; ev('p', c.x, c.y);
-        if (c.t === 0) addScrap(s, c.v);
+        if (c.t === 0) { addScrap(s, c.v); if (BRN(s, SAL) === 2) { s.hp = Math.min(s.hpMax, s.hp + 15); s.sh = Math.min(s.shMax, s.sh + 10); } }   // Overcharged Cells
         else if (c.t === 2) { s.pending++; if (!s.offers.length) makeOffers(s); logMsg(G.players[s.i].name + ' claimed a relic (+1 upgrade)'); }
         else if (c.t === 3) { const j = s.item.indexOf(-1); if (j >= 0) { s.item[j] = c.it; logMsg(`${G.players[s.i].name} picked up a ${ITEMS[c.it][0]}`); } else addScrap(s, 50); }
         else { s.hp = Math.min(s.hpMax, s.hp + 100); for (let p = 0; p < NP; p++) if (s.lv[p]) { s.dp[p] = 0; s.ph[p] = 30 + 20 * s.lv[p]; } }
@@ -1396,7 +1482,10 @@ function stepOnce(dt) {
     G.drops.push({ x: p.x, y: p.y, t: 25 }); logMsg('Supply drop landed — follow the yellow arrow!');
   }
   G.drops = G.drops.filter(d => (d.t -= dt) > 0);
-  if (G.cond === 'score') {
+  if (MODE === 'coop') {
+    if (G.coopWin) { G.over = true; G.winner = 0; showOver(0); }
+    else if (G.t >= G.tlim) { G.over = true; G.winner = -1; showOver(-1); }
+  } else if (G.cond === 'score') {
     const top = G.score.indexOf(Math.max(...G.score));
     if (G.score[top] >= G.target || G.t >= G.tlim) {
       const tie = G.score.filter(v => Math.floor(v) === Math.floor(G.score[top])).length > 1 && G.score[top] < G.target;
@@ -1428,7 +1517,7 @@ function publish(now) {
     t: +G.t.toFixed(2), z: r0(G.z), o: G.over ? 1 : 0, w: G.winner, ev: G.evPub.splice(0), lg: G.logPub.splice(0), dr: G.drops.map(d => [r0(d.x), r0(d.y)]),
     s: G.ships.map(s => [s.i, r0(s.x), r0(s.y), r0(s.vx), r0(s.vy), +s.ang.toFixed(2), r0(s.hp), s.hpMax, r0(s.sh), s.shMax, s.alive ? 1 : 0, s.lv.join(''),
       s.dp.reduce((m, v, j) => m | v << j, 0), s.emp > 0 ? 1 : 0, s.boost > 0 ? 1 : 0, s.thr, Math.floor(s.scrap), s.level, s.pending, s.offers,
-      s.sk.map(p => (p < 0 ? 0 : r0(s.cd[p] * 10))), s.sk, s.kills, r0(s.respT * 10), s.slow > 0 ? 1 : 0, s.br.join(''), flagsOf(s), s.streak, s.item, Math.round(s.dmgD || 0)]),
+      s.sk.map(p => (p < 0 ? 0 : r0(s.cd[p] * 10))), s.sk, s.kills, r0(s.respT * 10), s.slow > 0 ? 1 : 0, s.br.join(''), flagsOf(s), s.streak, s.item, Math.round(s.dmgD || 0), s.br2.join('')]),
     sh: G.shares.map(v => r0(v * 1000)),
     n: G.neut.map(n => [n.id, n.type, r0(n.x), r0(n.y), +n.ang.toFixed(2), r0(n.hp), r0(n.hpMax), n.rad, n.ow, r0((n.res || 0) * 100), n.cls || 0, n.conv ? 1 : 0, n.stat ? (n.ttl == null ? 9999 : r0(n.ttl * 10)) : 0, n.stat ? (n.tbr || 0) + 4 * (n.tlv || 1) : 0]),
     a: (G.pubK = (G.pubK || 0) + 1) % 8 === 1 ? G.ast.filter(a => a.vx === undefined).map(astRow) : undefined,   // static rocks: only ~2x per second
@@ -1534,7 +1623,7 @@ function decode(w, at) {
     ships: w.s.map(a => ({ i: a[0], x: a[1], y: a[2], vx: a[3], vy: a[4], ang: a[5], hp: a[6], hpMax: a[7], sh: a[8], shMax: a[9], alive: !!a[10],
       lv: a[11].split('').map(Number), dp: [...Array(NP).keys()].map(j => (a[12] >> j) & 1), emp: a[13], boost: a[14], thr: a[15], scrap: a[16], level: a[17],
       pending: a[18], offers: a[19], cd: a[20].map(v => v / 10), sk: a[21], kills: a[22], rs: (a[23] || 0) / 10, slow: a[24] || 0,
-      br: (a[25] || '').split('').map(Number), fl: a[26] | 0, cloak: a[26] & 1, aegis: a[26] & 2, od: a[26] & 4, amb: a[26] & 8, decoy: a[26] & 16, corr: a[26] & 32, streak: a[27] | 0, item: a[28] || [-1, -1], dmg: a[29] || 0 })),
+      br: (a[25] || '').split('').map(Number), fl: a[26] | 0, cloak: a[26] & 1, aegis: a[26] & 2, od: a[26] & 4, amb: a[26] & 8, decoy: a[26] & 16, corr: a[26] & 32, streak: a[27] | 0, item: a[28] || [-1, -1], dmg: a[29] || 0, br2: (a[30] || '').split('').map(Number) })),
     shares: w.sh.map(v => v / 1000),
     neut: w.n.map(a => ({ id: a[0], type: a[1], x: a[2], y: a[3], ang: a[4], hp: a[5], hpMax: a[6], rad: a[7], ow: a[8] == null ? -1 : a[8], res: Math.max(0, (a[9] || 0) / 100), cls: a[10] || 0, conv: a[11] || 0, ttl: a[12] === 9999 ? null : (a[12] || 0) / 10, tbr: (a[13] || 0) & 3, tlv: (a[13] || 0) >> 2 })),
     ast: (w.a || (C && C.sa) || []).concat(w.ad || []).map(a => ({ id: a[0], x: a[1], y: a[2], r: a[3], hp: a[4], hpMax: a[5], k: a[6] || 0 })),
@@ -2346,7 +2435,8 @@ function drawItemButton(b, it) {   // one of the 2 consumable-item slots: empty 
   ctx.restore();
 }
 const tleftOf = V => (V.tleft != null ? V.tleft : Math.max(0, (V.tlim || 0) - V.t));
-function offerInfo(p, M) {   // card content for a plain upgrade (part id) or a branch (id >= 100)
+function offerInfo(p, M) {   // card content for a plain upgrade (part id), a branch (id >= 100), or an ascension (id >= 200)
+  if (p >= 200) { const q = (p - 200) >> 1, tier = BR2[q] && BR2[q][(M.br[q] || 1) - 1], b = (tier && tier[(p - 200) & 1]) || ['?', '']; return { mod: q, name: '✦ ' + b[0], desc: b[1], lvFrom: 3, lvTo: 3, active: false, branch: true }; }
   if (p >= 100) { const q = (p - 100) >> 1, b = (BR[q] && BR[q][(p - 100) & 1]) || ['?', '']; return { mod: q, name: '★ ' + b[0], desc: b[1], lvFrom: 3, lvTo: 3, active: false, branch: true }; }
   return { mod: p, name: PARTS[p][0], desc: PARTS[p][1].replace(' [skill]', ''), lvFrom: M.lv[p], lvTo: M.lv[p] + 1, active: !!PARTS[p][3] };
 }
